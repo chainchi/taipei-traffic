@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Environment secrets — NEVER commit this
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+server.log
+
+# Recorded video files
+recordings/
+
+# Wrangler / Cloudflare build artifacts
+.wrangler/
+
+# macOS
+.DS_Store
+
+# npm debug logs
+npm-debug.log*

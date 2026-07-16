@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Xihu AI Pedestrian Detection</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Orbitron:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <!-- TensorFlow.js + COCO-SSD -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+    <style>
+        :root {
+            --bg: #050a14;
+            --panel: rgba(10, 14, 28, 0.85);
+            --accent: #00f3ff;
+            --glow: rgba(0, 243, 255, 0.35);
+            --danger: #ff3366;
+            --warn: #ffaa00;
+            --good: #00ff88;
+            --border: rgba(255, 255, 255, 0.08);
+            --font: 'Inter', sans-serif;
+            --display: 'Orbitron', monospace;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--bg);
+            color: #f0f4f8;
+            font-family: var(--font);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── Video Area ── */
+        #video-section {
+            position: relative;
+            flex: 1;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #source-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #ai-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        /* Zebra-zone highlight */
+        .zone-label {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 6px 18px;
+            background: rgba(0, 243, 255, 0.15);
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            font-family: var(--display);
+            font-size: 0.7rem;
+            letter-spacing: 2px;
+            border-radius: 4px;
+        }
+
+        /* Header overlay */
+        .video-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--danger);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--danger);
+            animation: blink 1.4s infinite alternate;
+        }
+
+        @keyframes blink {
+            from {
+                opacity: 0.4;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .video-header-title {
+            font-family: var(--display);
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            color: #fff;
+        }
+
+        #model-status {
+            margin-left: auto;
+            font-size: 0.7rem;
+            color: var(--warn);
+            font-family: var(--display);
+            letter-spacing: 1.5px;
+        }
+
+        #model-status.ready {
+            color: var(--good);
+        }
+
+        /* Upload / webcam controls */
+        #source-controls {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            z-index: 20;
+        }
+
+        #source-controls.hidden {
+            display: none;
+        }
+
+        .src-btn {
+            padding: 14px 32px;
+            border: 1px solid var(--accent);
+            background: rgba(0, 243, 255, 0.08);
+            color: var(--accent);
+            border-radius: 8px;
+            font-family: var(--display);
+            font-size: 0.8rem;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.25s;
+            width: 260px;
+            text-align: center;
+        }
+
+        .src-btn:hover {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 20px var(--glow);
+        }
+
+        #url-input {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            width: 100%;
+        }
+
+        /* ── Sidebar ── */
+        #sidebar {
+            width: 340px;
+            background: var(--panel);
+            backdrop-filter: blur(14px);
+            border-left: 1px solid var(--border);
+            box-shadow: -12px 0 30px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            padding: 1.8rem;
+            gap: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-icon {
+            width: 44px;
+            height: 44px;
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            box-shadow: 0 0 14px var(--glow);
+        }
+
+        .brand-title {
+            font-family: var(--display);
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .brand-title span {
+            color: var(--accent);
+        }
+
+        .brand-sub {
+            font-size: 0.62rem;
+            letter-spacing: 3px;
+            color: var(--accent);
+            opacity: 0.75;
+        }
+
+        .panel-heading {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            color: #8a9fc2;
+            letter-spacing: 2px;
+            margin-bottom: 0.6rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-heading::before {
+            content: '';
+            display: block;
+            width: 10px;
+            height: 2px;
+            background: var(--accent);
+        }
+
+        /* Big counter */
+        .crossing-counter {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.4rem;
+            text-align: center;
+        }
+
+        .counter-value {
+            font-family: var(--display);
+            font-size: 4rem;
+            font-weight: 700;
+            color: var(--accent);
+            text-shadow: 0 0 30px var(--glow);
+            line-height: 1;
+        }
+
+        .counter-label {
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            color: #8a9fc2;
+            margin-top: 6px;
+            text-transform: uppercase;
+        }
+
+        /* Stat row */
+        .stat-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .stat-box {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-val {
+            font-family: var(--display);
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .stat-val.warn {
+            color: var(--warn);
+        }
+
+        .stat-val.good {
+            color: var(--good);
+        }
+
+        .stat-val.danger {
+            color: var(--danger);
+        }
+
+        .stat-lbl {
+            font-size: 0.65rem;
+            letter-spacing: 1.5px;
+            color: #8a9fc2;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        /* Detection log */
+        .log-box {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 0.8rem;
+            overflow-y: auto;
+            min-height: 120px;
+            max-height: 200px;
+        }
+
+        .log-line {
+            font-size: 0.72rem;
+            color: #8a9fc2;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .log-line .ts {
+            color: var(--accent);
+            margin-right: 8px;
+            font-family: monospace;
+        }
+
+        .log-line .ev {
+            color: var(--warn);
+        }
+
+        .log-line .ev.in {
+            color: var(--good);
+        }
+
+        /* Zone toggle */
+        .zone-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .zone-toggle:hover {
+            background: rgba(0, 243, 255, 0.05);
+            border-color: var(--accent);
+        }
+
+        .toggle-check {
+            width: 20px;
+            height: 20px;
+            border: 1px solid var(--accent);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--accent);
+            font-size: 0.85rem;
+        }
+
+        /* Reset btn */
+        .reset-btn {
+            padding: 10px;
+            background: rgba(255, 51, 102, 0.1);
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            border-radius: 8px;
+            font-family: var(--display);
+            font-size: 0.7rem;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .reset-btn:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+
+        /* FPS badge */
+        #fps-badge {
+            position: absolute;
+            bottom: 14px;
+            right: 14px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: #8a9fc2;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ───────── Video Section ───────── -->
+    <div id="video-section">
+        <div class="video-header">
+            <div class="live-dot"></div>
+            <div class="video-header-title">XIHU MARKET · PEDESTRIAN AI</div>
+            <div id="model-status">⏳ LOADING MODEL…</div>
+        </div>
+
+        <video id="source-video" autoplay muted playsinline></video>
+        <canvas id="ai-canvas"></canvas>
+        <div class="zone-label" id="zone-label">🦓 ZEBRA CROSSING ZONE ACTIVE</div>
+        <div id="fps-badge">-- FPS</div>
+
+        <!-- Source picker shown before video starts -->
+        <div id="source-controls">
+            <div
+                style="font-family: var(--display); font-size: 0.75rem; letter-spacing:2px; color: #8a9fc2; text-align:center; margin-bottom:6px;">
+                SELECT VIDEO SOURCE</div>
+            <button class="src-btn" onclick="startWebcam()">📷 Use Webcam (Recommended)</button>
+            <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
+                <input id="url-input" type="text" placeholder="Or paste video URL (.mp4 / .m3u8)…" class="url-input">
+                <button class="src-btn" onclick="startURL()">▶ Load Video URL</button>
+            </div>
+            <button class="src-btn" onclick="startDemo()">🎬 Run DEMO (Sample Video)</button>
+        </div>
+    </div>
+
+    <!-- ───────── Sidebar ───────── -->
+    <div id="sidebar">
+        <div class="brand">
+            <div class="brand-icon">🧠</div>
+            <div>
+                <div class="brand-title">XIHU<span>AI</span></div>
+                <div class="brand-sub">PEDESTRIAN TRACKING</div>
+            </div>
+        </div>
+
+        <!-- Crossing counter -->
+        <div>
+            <div class="panel-heading">Zebra Crossing Counter (Session)</div>
+            <div class="crossing-counter">
+                <div class="counter-value" id="crossing-count">0</div>
+                <div class="counter-label">Pedestrians Counted</div>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div>
+            <div class="panel-heading">Live Frame Stats</div>
+            <div class="stat-row">
+                <div class="stat-box">
+                    <div class="stat-val" id="persons-now">0</div>
+                    <div class="stat-lbl">In Frame</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val warn" id="in-zone">0</div>
+                    <div class="stat-lbl">In Zone</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val good" id="peak-count">0</div>
+                    <div class="stat-lbl">Peak</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Zone toggle -->
+        <div>
+            <div class="panel-heading">Detection Zone</div>
+            <div class="zone-toggle" onclick="toggleZone()">
+                <div class="toggle-check" id="zone-check">✓</div>
+                <div>
+                    <div style="font-size:0.82rem; font-weight:600;">Zebra Crossing ROI</div>
+                    <div style="font-size:0.65rem; color:#8a9fc2; margin-top:2px;">Draw box on video to set zone</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alert log -->
+        <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+            <div class="panel-heading">Detection Log</div>
+            <div class="log-box" id="detection-log">
+                <div class="log-line"><span class="ts">--:--:--</span><span>Waiting for model…</span></div>
+            </div>
+        </div>
+
+        <!-- Reset -->
+        <div class="reset-btn" onclick="resetCounter()">⟳ RESET COUNTER</div>
+
+        <div style="text-align:center; font-size:0.65rem; color:#8a9fc2; letter-spacing:1px;">
+            Model: COCO-SSD · TensorFlow.js
+        </div>
+    </div>
+
+    <script>
+        // ─────── State ───────
+        let model = null;
+        let crossingCount = 0;
+        let peakCount = 0;
+        let animFrameId = null;
+        let lastFpsTime = Date.now();
+        let frameCount = 0;
+        let zoneEnabled = true;
+        let zone = null;               // {x,y,w,h} normalized 0-1
+        let prevPersonCount = 0;
+
+        // Default zebra zone for Xihu camera (lower-center third)
+        // User can drag to redraw
+        let zoneNorm = { x: 0.2, y: 0.60, w: 0.60, h: 0.30 };
+
+        const video = document.getElementById('source-video');
+        const canvas = document.getElementById('ai-canvas');
+        const ctx = canvas.getContext('2d');
+
+        const crossingEl = document.getElementById('crossing-count');
+        const personsEl = document.getElementById('persons-now');
+        const inZoneEl = document.getElementById('in-zone');
+        const peakEl = document.getElementById('peak-count');
+        const logEl = document.getElementById('detection-log');
+        const modelStatusEl = document.getElementById('model-status');
+        const fpsEl = document.getElementById('fps-badge');
+
+        // ─────── Model Load ───────
+        async function loadModel() {
+            addLog('Loading COCO-SSD model…', 'ev');
+            model = await cocoSsd.load({ base: 'lite_mobilenet_v2' });
+            modelStatusEl.textContent = '✓ MODEL READY';
+            modelStatusEl.classList.add('ready');
+            addLog('Model loaded — select video source', 'in');
+        }
+
+        // ─────── Source Helpers ───────
+        function startWebcam() {
+            navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
+                .then(stream => { video.srcObject = stream; beginDetection(); })
+                .catch(e => addLog('Webcam denied: ' + e.message, 'ev'));
+            document.getElementById('source-controls').classList.add('hidden');
+        }
+
+        function startURL() {
+            const url = document.getElementById('url-input').value.trim();
+            if (!url) return;
+            video.src = url;
+            video.crossOrigin = 'anonymous';
+            document.getElementById('source-controls').classList.add('hidden');
+            beginDetection();
+        }
+
+        function startDemo() {
+            // Public domain Big Buck Bunny traffic-test; has people walking in open shots
+            video.src = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+            video.crossOrigin = 'anonymous';
+            document.getElementById('source-controls').classList.add('hidden');
+            beginDetection();
+            addLog('Demo video loaded — switch to webcam or CCTV URL for live data', 'ev');
+        }
+
+        function beginDetection() {
+            video.addEventListener('loadedmetadata', () => {
+                resizeCanvas();
+                if (!animFrameId) detect();
+            }, { once: true });
+            video.play().catch(() => { });
+        }
+
+        // ─────── Canvas Sizing ───────
+        function resizeCanvas() {
+            if (!video.videoWidth || !video.videoHeight) {
+                const rect = video.getBoundingClientRect();
+                canvas.width = rect.width;
+                canvas.height = rect.height;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                canvas.style.top = '0px';
+                canvas.style.left = '0px';
+                return;
+            }
+
+            const videoRatio = video.videoWidth / video.videoHeight;
+            const elementWidth = video.clientWidth;
+            const elementHeight = video.clientHeight;
+            const elementRatio = elementWidth / elementHeight;
+
+            let width, height, top, left;
+
+            if (elementRatio > videoRatio) {
+                // Pillarboxed
+                height = elementHeight;
+                width = height * videoRatio;
+                top = 0;
+                left = (elementWidth - width) / 2;
+            } else {
+                // Letterboxed
+                width = elementWidth;
+                height = width / videoRatio;
+                left = 0;
+                top = (elementHeight - height) / 2;
+            }
+
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            canvas.style.top = top + 'px';
+            canvas.style.left = left + 'px';
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // ─────── Detection Loop ───────
+        async function detect() {
+            if (!model || video.paused || video.ended) { animFrameId = requestAnimationFrame(detect); return; }
+
+            const predictions = await model.detect(video);
+
+            // Count FPS
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFpsTime >= 1000) {
+                fpsEl.textContent = frameCount + ' FPS';
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+
+            // Sync canvas size
+            if (canvas.width !== video.videoWidth) resizeCanvas();
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw ROI zone
+            if (zoneEnabled) drawZone();
+
+            const persons = predictions.filter(p => p.class === 'person' && p.score > 0.25);
+            let inZone = 0;
+
+            persons.forEach(p => {
+                const [x, y, w, h] = p.bbox;
+                const score = (p.score * 100).toFixed(0);
+                const isInsideZone = zoneEnabled && isInZone(x, y, w, h);
+                if (isInsideZone) inZone++;
+
+                // Bounding box
+                ctx.strokeStyle = '#00f3ff';
+                ctx.lineWidth = isInsideZone ? 2.5 : 1.5;
+                ctx.shadowBlur = isInsideZone ? 14 : 6;
+                ctx.shadowColor = '#00f3ff';
+                ctx.strokeRect(x, y, w, h);
+
+                // Label background
+                const label = `🧍 ${score}%`;
+                ctx.font = 'bold 13px Inter';
+                const tw = ctx.measureText(label).width;
+                ctx.fillStyle = 'rgba(0,243,255,0.8)';
+                ctx.fillRect(x, y - 22, tw + 12, 22);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#000';
+                ctx.fillText(label, x + 6, y - 6);
+
+                // Keypoint dot at center bottom (foot position)
+                ctx.beginPath();
+                ctx.arc(x + w / 2, y + h, 4, 0, Math.PI * 2);
+                ctx.fillStyle = '#00f3ff';
+                ctx.fill();
+            });
+
+            // Update counter if new person entered zone
+            if (inZone > 0 && inZone > prevPersonCount) {
+                const newArrivals = inZone - prevPersonCount;
+                crossingCount += newArrivals;
+                crossingEl.textContent = crossingCount;
+                addLog(`+${newArrivals} entered crossing zone`, 'in');
+            }
+
+            prevPersonCount = inZone;
+
+            // Update stats
+            personsEl.textContent = persons.length;
+            inZoneEl.textContent = inZone;
+            if (persons.length > peakCount) { peakCount = persons.length; peakEl.textContent = peakCount; }
+
+            // Color code
+            personsEl.className = 'stat-val ' + (persons.length > 5 ? 'danger' : persons.length > 2 ? 'warn' : '');
+            inZoneEl.className = 'stat-val ' + (inZone > 0 ? 'accent' : 'good');
+
+            animFrameId = requestAnimationFrame(detect);
+        }
+
+        // ─────── Zone Drawing ───────
+        function drawZone() {
+            const zx = zoneNorm.x * canvas.width;
+            const zy = zoneNorm.y * canvas.height;
+            const zw = zoneNorm.w * canvas.width;
+            const zh = zoneNorm.h * canvas.height;
+
+            // Striped fill (zebra style)
+            ctx.save();
+            ctx.globalAlpha = 0.12;
+            ctx.fillStyle = '#00f3ff';
+            ctx.fillRect(zx, zy, zw, zh);
+
+            ctx.globalAlpha = 0.15;
+            const stripeW = 18;
+            for (let sx = zx; sx < zx + zw; sx += stripeW * 2) {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(sx, zy, stripeW, zh);
+            }
+
+            ctx.restore();
+
+            // Border
+            ctx.setLineDash([6, 4]);
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#00f3ff';
+            ctx.strokeRect(zx, zy, zw, zh);
+            ctx.setLineDash([]);
+            ctx.shadowBlur = 0;
+
+            // Label
+            ctx.fillStyle = 'rgba(0,243,255,0.9)';
+            ctx.font = 'bold 11px Orbitron, monospace';
+            ctx.fillText('ZEBRA ZONE', zx + 8, zy + 18);
+        }
+
+        function isInZone(bx, by, bw, bh) {
+            const zx = zoneNorm.x * canvas.width;
+            const zy = zoneNorm.y * canvas.height;
+            const zw = zoneNorm.w * canvas.width;
+            const zh = zoneNorm.h * canvas.height;
+            // Check foot-point (bottom-center of bbox)
+            const fx = bx + bw / 2;
+            const fy = by + bh;
+            return fx > zx && fx < zx + zw && fy > zy && fy < zy + zh;
+        }
+
+        // ─────── Zone Drag Redraw ───────
+        let drawing = false;
+        let dragStart = null;
+
+        canvas.addEventListener('pointerdown', e => {
+            const r = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / r.width;
+            const scaleY = canvas.height / r.height;
+            dragStart = { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY };
+            drawing = true;
+        });
+
+        canvas.addEventListener('pointermove', e => {
+            if (!drawing) return;
+            const r = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / r.width;
+            const scaleY = canvas.height / r.height;
+            const cur = { x: (e.clientX - r.left) * scaleX, y: (e.clientY - r.top) * scaleY };
+            zoneNorm = {
+                x: Math.min(dragStart.x, cur.x) / canvas.width,
+                y: Math.min(dragStart.y, cur.y) / canvas.height,
+                w: Math.abs(cur.x - dragStart.x) / canvas.width,
+                h: Math.abs(cur.y - dragStart.y) / canvas.height
+            };
+        });
+
+        canvas.addEventListener('pointerup', () => { drawing = false; });
+
+        // ─────── Zone Toggle ───────
+        function toggleZone() {
+            zoneEnabled = !zoneEnabled;
+            document.getElementById('zone-check').textContent = zoneEnabled ? '✓' : '';
+            document.getElementById('zone-label').style.display = zoneEnabled ? 'block' : 'none';
+        }
+
+        // ─────── Reset ───────
+        function resetCounter() {
+            crossingCount = 0;
+            peakCount = 0;
+            prevPersonCount = 0;
+            crossingEl.textContent = 0;
+            peakEl.textContent = 0;
+            personsEl.textContent = 0;
+            inZoneEl.textContent = 0;
+            logEl.innerHTML = '';
+            addLog('Counter reset', 'ev');
+        }
+
+        // ─────── Log ───────
+        function addLog(msg, cls = '') {
+            const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const line = document.createElement('div');
+            line.className = 'log-line';
+            line.innerHTML = `<span class="ts">${ts}</span><span class="ev ${cls}">${msg}</span>`;
+            logEl.insertBefore(line, logEl.firstChild);
+            if (logEl.children.length > 40) logEl.removeChild(logEl.lastChild);
+        }
+
+        // ─────── Boot ───────
+        loadModel();
+    </script>
+</body>
+
+</html>

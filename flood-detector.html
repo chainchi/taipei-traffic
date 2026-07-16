@@ -1,0 +1,2365 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FloodWatch AI — Neihu District Flood Detection</title>
+    <meta name="description" content="Real-time flood detection using CCTV camera video analysis for Neihu District, Taipei">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;700;900&display=swap"
+        rel="stylesheet">
+
+    <!-- HLS.js for live streams -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+
+    <!-- Google AdSense Integration -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5738630038087798"
+     crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg: #030810;
+            --panel: rgba(8, 12, 24, 0.92);
+            --card: rgba(12, 18, 35, 0.85);
+            --accent: #00c8ff;
+            --accent2: #00e5a0;
+            --glow: rgba(0, 200, 255, 0.3);
+            --glow2: rgba(0, 229, 160, 0.3);
+            --danger: #ff3355;
+            --danger-glow: rgba(255, 51, 85, 0.35);
+            --warn: #ffaa22;
+            --warn-glow: rgba(255, 170, 34, 0.25);
+            --safe: #00e5a0;
+            --safe-glow: rgba(0, 229, 160, 0.25);
+            --critical: #ff1744;
+            --critical-glow: rgba(255, 23, 68, 0.5);
+            --border: rgba(255, 255, 255, 0.06);
+            --border-active: rgba(0, 200, 255, 0.2);
+            --text: #e0e8f0;
+            --text-dim: #6b7fa0;
+            --font: 'Inter', -apple-system, sans-serif;
+            --display: 'Orbitron', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Top Bar ── */
+        .topbar {
+            height: 56px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            gap: 16px;
+            backdrop-filter: blur(20px);
+            z-index: 100;
+            flex-shrink: 0;
+        }
+
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .topbar-icon {
+            width: 36px;
+            height: 36px;
+            background: linear-gradient(135deg, rgba(0, 200, 255, 0.15), rgba(0, 229, 160, 0.1));
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            box-shadow: 0 0 16px var(--glow);
+        }
+
+        .topbar-title {
+            font-family: var(--display);
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 2.5px;
+        }
+
+        .topbar-title span { color: var(--accent); }
+
+        .topbar-divider {
+            width: 1px;
+            height: 28px;
+            background: var(--border);
+            margin: 0 4px;
+        }
+
+        .topbar-subtitle {
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .topbar-right {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .topbar-time {
+            font-family: var(--display);
+            font-size: 0.75rem;
+            color: var(--accent);
+            letter-spacing: 1px;
+        }
+
+        /* ── Main Layout ── */
+        .main {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── Video Section ── */
+        .video-section {
+            flex: 1;
+            position: relative;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .live-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 51, 85, 0.15);
+            border: 1px solid rgba(255, 51, 85, 0.4);
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-family: var(--display);
+            font-size: 0.6rem;
+            letter-spacing: 2px;
+            color: var(--danger);
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--danger);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--danger);
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            from { opacity: 0.4; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1.1); }
+        }
+
+        .cam-name {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #fff;
+            letter-spacing: 0.5px;
+        }
+
+        .cam-location {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-left: auto;
+        }
+
+        .video-container {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        #source-video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+        #analysis-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        #zone-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 6;
+            cursor: crosshair;
+        }
+
+        /* Hidden canvas for frame analysis */
+        #work-canvas { display: none; }
+
+        /* ── Camera Selector Overlay ── */
+        .source-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(3, 8, 16, 0.95);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            transition: opacity 0.4s;
+        }
+
+        .source-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .source-panel {
+            text-align: center;
+            max-width: 520px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        .source-panel-title {
+            font-family: var(--display);
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .source-panel-subtitle {
+            font-size: 0.85rem;
+            color: var(--text);
+            margin-bottom: 32px;
+            line-height: 1.5;
+        }
+
+        .cam-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .cam-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .cam-card:hover {
+            border-color: var(--accent);
+            background: rgba(0, 200, 255, 0.05);
+            box-shadow: 0 0 20px var(--glow);
+            transform: translateY(-2px);
+        }
+
+        .cam-card.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--glow);
+        }
+
+        .cam-card-emoji { font-size: 1.5rem; margin-bottom: 8px; }
+
+        .cam-card-name {
+            font-weight: 600;
+            font-size: 0.82rem;
+            margin-bottom: 4px;
+        }
+
+        .cam-card-station {
+            font-size: 0.68rem;
+            color: var(--accent);
+            letter-spacing: 1px;
+        }
+
+        .cam-card-dist {
+            font-size: 0.62rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .source-divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 20px 0;
+            font-size: 0.68rem;
+            color: var(--text-dim);
+            letter-spacing: 2px;
+        }
+
+        .source-divider::before,
+        .source-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        .custom-input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .custom-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-family: var(--font);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .custom-input:focus { border-color: var(--accent); }
+
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid var(--accent);
+            background: rgba(0, 200, 255, 0.08);
+            color: var(--accent);
+            border-radius: 8px;
+            font-family: var(--display);
+            font-size: 0.7rem;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 20px var(--glow);
+        }
+
+        .btn-webcam {
+            width: 100%;
+            margin-top: 12px;
+            border-color: var(--accent2);
+            color: var(--accent2);
+            background: rgba(0, 229, 160, 0.06);
+        }
+
+        .btn-webcam:hover {
+            background: var(--accent2);
+            color: #000;
+            box-shadow: 0 0 20px var(--glow2);
+        }
+
+        /* FPS / status badges */
+        .video-badges {
+            position: absolute;
+            bottom: 50px;
+            left: 14px;
+            display: flex;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .badge {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.68rem;
+            color: var(--text-dim);
+        }
+
+        /* Record button */
+        .rec-btn {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 51, 85, 0.4);
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-family: var(--display);
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            color: var(--danger);
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .rec-btn:hover {
+            background: rgba(255, 51, 85, 0.15);
+            border-color: var(--danger);
+            box-shadow: 0 0 12px var(--danger-glow);
+        }
+
+        .rec-btn.recording {
+            background: rgba(255, 51, 85, 0.2);
+            border-color: var(--danger);
+            animation: recBtnPulse 1.5s infinite;
+        }
+
+        @keyframes recBtnPulse {
+            0%, 100% { box-shadow: 0 0 6px var(--danger-glow); }
+            50% { box-shadow: 0 0 18px var(--danger-glow); }
+        }
+
+        .rec-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+            flex-shrink: 0;
+        }
+
+        .rec-btn.recording .rec-dot {
+            animation: pulse 1s infinite alternate;
+        }
+
+        .rec-btn .rec-square {
+            width: 8px;
+            height: 8px;
+            background: var(--danger);
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        /* ── Sidebar ── */
+        .sidebar {
+            width: 360px;
+            background: var(--panel);
+            backdrop-filter: blur(16px);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+        .sidebar-section {
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-heading {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            letter-spacing: 2.5px;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-heading::before {
+            content: '';
+            width: 12px;
+            height: 2px;
+            background: var(--accent);
+        }
+
+        /* ── Flood Risk Gauge ── */
+        .risk-gauge {
+            text-align: center;
+            padding: 24px 16px;
+        }
+
+        .gauge-ring {
+            width: 160px;
+            height: 160px;
+            margin: 0 auto 16px;
+            position: relative;
+        }
+
+        .gauge-ring svg {
+            width: 100%;
+            height: 100%;
+            transform: rotate(-90deg);
+        }
+
+        .gauge-bg {
+            fill: none;
+            stroke: rgba(255, 255, 255, 0.05);
+            stroke-width: 10;
+        }
+
+        .gauge-fill {
+            fill: none;
+            stroke: var(--safe);
+            stroke-width: 10;
+            stroke-linecap: round;
+            stroke-dasharray: 408;
+            stroke-dashoffset: 408;
+            transition: stroke-dashoffset 1s ease, stroke 0.5s;
+            filter: drop-shadow(0 0 8px var(--safe-glow));
+        }
+
+        .gauge-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .gauge-value {
+            font-family: var(--display);
+            font-size: 2.2rem;
+            font-weight: 900;
+            line-height: 1;
+            color: var(--safe);
+            text-shadow: 0 0 20px var(--safe-glow);
+            transition: color 0.5s;
+        }
+
+        .gauge-unit {
+            font-size: 0.6rem;
+            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .risk-label {
+            font-family: var(--display);
+            font-size: 0.85rem;
+            font-weight: 700;
+            letter-spacing: 3px;
+            padding: 6px 16px;
+            border-radius: 6px;
+            display: inline-block;
+            transition: all 0.5s;
+        }
+
+        .risk-label.safe { color: var(--safe); background: rgba(0, 229, 160, 0.1); border: 1px solid rgba(0, 229, 160, 0.3); }
+        .risk-label.low { color: var(--accent); background: rgba(0, 200, 255, 0.1); border: 1px solid rgba(0, 200, 255, 0.3); }
+        .risk-label.medium { color: var(--warn); background: rgba(255, 170, 34, 0.1); border: 1px solid rgba(255, 170, 34, 0.3); }
+        .risk-label.high { color: var(--danger); background: rgba(255, 51, 85, 0.1); border: 1px solid rgba(255, 51, 85, 0.3); }
+        .risk-label.critical { color: var(--critical); background: rgba(255, 23, 68, 0.15); border: 1px solid rgba(255, 23, 68, 0.4); animation: critPulse 1.5s infinite; }
+
+        @keyframes critPulse {
+            0%, 100% { box-shadow: 0 0 10px var(--critical-glow); }
+            50% { box-shadow: 0 0 25px var(--critical-glow); }
+        }
+
+        /* ── Metric Cards ── */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px;
+            text-align: center;
+            transition: border-color 0.3s;
+        }
+
+        .metric-card.alert { border-color: var(--warn); }
+
+        .metric-val {
+            font-family: var(--display);
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text);
+            transition: color 0.3s;
+        }
+
+        .metric-label {
+            font-size: 0.6rem;
+            letter-spacing: 1.5px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .metric-bar {
+            height: 3px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .metric-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.5s, background 0.3s;
+            width: 0%;
+        }
+
+        /* ── Zone Controls ── */
+        .zone-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .zone-btn {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 0.78rem;
+        }
+
+        .zone-btn:hover { background: rgba(0, 200, 255, 0.05); border-color: var(--accent); }
+        .zone-btn.active { border-color: var(--accent); background: rgba(0, 200, 255, 0.08); }
+
+        .zone-btn-icon {
+            width: 24px;
+            height: 24px;
+            border: 1px solid var(--accent);
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+
+        .zone-btn-text { flex: 1; text-align: left; }
+        .zone-btn-sub { font-size: 0.62rem; color: var(--text-dim); margin-top: 2px; }
+
+        /* AdSense Container styling */
+        .sponsored-card {
+            background: rgba(12, 18, 35, 0.4);
+            border: 1px dashed var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 120px;
+            transition: border-color 0.3s;
+        }
+        .sponsored-card:hover {
+            border-color: rgba(0, 200, 255, 0.2);
+        }
+        .sponsored-label {
+            font-family: var(--display);
+            font-size: 0.58rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            opacity: 0.7;
+        }
+
+        /* ── Color Analysis Bar ── */
+        .color-analysis {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .color-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .color-swatch {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+
+        .color-name {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            width: 60px;
+            flex-shrink: 0;
+        }
+
+        .color-bar-track {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .color-bar-value {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.4s;
+        }
+
+        .color-pct {
+            font-family: monospace;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            width: 36px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* ── Alert Log ── */
+        .alert-log {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px;
+            overflow-y: auto;
+            min-height: 100px;
+            max-height: 180px;
+        }
+
+        .alert-line {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .alert-ts {
+            color: var(--accent);
+            font-family: monospace;
+            font-size: 0.62rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .alert-msg { flex: 1; line-height: 1.4; }
+        .alert-msg.warn { color: var(--warn); }
+        .alert-msg.danger { color: var(--danger); }
+        .alert-msg.safe { color: var(--safe); }
+        .alert-msg.info { color: var(--accent); }
+
+        /* ── Baseline Controls ── */
+        .baseline-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .baseline-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: var(--font);
+        }
+
+        .baseline-btn:hover {
+            border-color: var(--accent);
+            background: rgba(0, 200, 255, 0.05);
+        }
+
+        .baseline-btn.captured {
+            border-color: var(--safe);
+            color: var(--safe);
+        }
+
+        .baseline-status {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            margin-top: 6px;
+            text-align: center;
+        }
+
+        /* ── Sensitivity Slider ── */
+        .slider-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .slider-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            width: 70px;
+            flex-shrink: 0;
+        }
+
+        .slider {
+            flex: 1;
+            -webkit-appearance: none;
+            appearance: none;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--glow);
+        }
+
+        .slider-val {
+            font-family: monospace;
+            font-size: 0.7rem;
+            color: var(--accent);
+            width: 30px;
+            text-align: right;
+        }
+
+        /* ── Water animation on critical ── */
+        @keyframes waterRipple {
+            0% { box-shadow: inset 0 0 20px var(--critical-glow); }
+            50% { box-shadow: inset 0 0 40px var(--critical-glow); }
+            100% { box-shadow: inset 0 0 20px var(--critical-glow); }
+        }
+
+        .video-section.flooding { animation: waterRipple 2s infinite; }
+
+        /* ── Notification Settings styling ── */
+        .notif-toggle-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+        .notif-toggle-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            border-radius: 6px;
+            font-size: 0.68rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .notif-toggle-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(0, 200, 255, 0.05);
+        }
+        .notif-toggle-btn.active.line-mode {
+            border-color: var(--accent2);
+            color: var(--accent2);
+            background: rgba(0, 229, 160, 0.05);
+        }
+        .notif-input-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .notif-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .notif-input:focus {
+            border-color: var(--accent);
+        }
+        .notif-input.line-input:focus {
+            border-color: var(--accent2);
+        }
+        .notif-status-bar {
+            font-size: 0.62rem;
+            color: var(--text-dim);
+            text-align: left;
+            margin-top: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .notif-status-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-dim);
+        }
+        .notif-status-dot.active {
+            background: var(--safe);
+            box-shadow: 0 0 6px var(--safe-glow);
+        }
+
+        /* Mode toggle styles */
+        .mode-selector {
+            margin-left: auto;
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .mode-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-family: var(--font);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn:hover {
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .mode-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(0, 200, 255, 0.08);
+            box-shadow: 0 0 8px var(--glow);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 900px) {
+            .main { flex-direction: column; }
+            .sidebar { width: 100%; max-height: 50vh; }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ── Top Bar ── -->
+    <div class="topbar">
+        <div class="topbar-brand">
+            <div class="topbar-icon">🌊</div>
+            <div class="topbar-title">FLOOD<span>WATCH</span></div>
+        </div>
+        <div class="topbar-divider"></div>
+        <div class="topbar-subtitle">Neihu District · Brown Line MRT</div>
+        <div class="topbar-right">
+            <div class="topbar-time" id="clock">--:--:--</div>
+        </div>
+    </div>
+
+    <!-- ── Main ── -->
+    <div class="main">
+
+        <!-- ── Video ── -->
+        <div class="video-section" id="video-section">
+            <div class="video-header">
+                <div class="live-badge">
+                    <div class="live-dot"></div>
+                    LIVE
+                </div>
+                <div class="cam-name" id="cam-name">Select Camera</div>
+                <div class="cam-location" id="cam-location"></div>
+                <div class="mode-selector">
+                    <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')">🌊 Flood Detection</button>
+                    <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')">🚗 Parking Watch</button>
+                </div>
+            </div>
+
+            <div class="video-container">
+                <video id="source-video" autoplay muted playsinline></video>
+                <canvas id="analysis-canvas"></canvas>
+                <canvas id="zone-canvas"></canvas>
+            </div>
+
+            <div class="video-badges">
+                <div class="badge" id="fps-badge">-- FPS</div>
+                <div class="badge" id="analysis-badge">Analysis: OFF</div>
+                <button class="rec-btn" id="rec-btn" onclick="toggleRecording()">
+                    <div class="rec-dot"></div>
+                    <span id="rec-btn-text">REC</span>
+                </button>
+            </div>
+
+            <!-- Camera selector -->
+            <div class="source-overlay" id="source-overlay">
+                <div class="source-panel">
+                    <div class="source-panel-title">SELECT MONITORING CAMERA</div>
+                    <div class="source-panel-subtitle">
+                        Pre-configured CCTV cameras near Brown Line MRT stations in Neihu District (內湖區)
+                    </div>
+
+                    <div class="cam-grid">
+                        <div class="cam-card" onclick="loadCamera('145', '內湖路一段', '港墘站 Gangqian', '184m from station')">
+                            <div class="cam-card-emoji">🚇</div>
+                            <div class="cam-card-name">內湖路一段</div>
+                            <div class="cam-card-station">🟤 港墘站 Gangqian</div>
+                            <div class="cam-card-dist">📍 184m from station</div>
+                        </div>
+                        <div class="cam-card" onclick="loadCamera('124', '康寧路三段', '東湖站 Donghu', '175m from station')">
+                            <div class="cam-card-emoji">🚇</div>
+                            <div class="cam-card-name">康寧路三段</div>
+                            <div class="cam-card-station">🟤 東湖站 Donghu</div>
+                            <div class="cam-card-dist">📍 175m from station</div>
+                        </div>
+                        <div class="cam-card" onclick="loadCamera('113', '瑞光路', '港墘站 Gangqian', '407m from station')">
+                            <div class="cam-card-emoji">📹</div>
+                            <div class="cam-card-name">瑞光路</div>
+                            <div class="cam-card-station">🟤 港墘站 Gangqian</div>
+                            <div class="cam-card-dist">📍 407m from station</div>
+                        </div>
+                        <div class="cam-card" onclick="loadCamera('335', '康寧路三段', '東湖站 Donghu', '223m from station')">
+                            <div class="cam-card-emoji">📹</div>
+                            <div class="cam-card-name">康寧路三段 (Alt)</div>
+                            <div class="cam-card-station">🟤 東湖站 Donghu</div>
+                            <div class="cam-card-dist">📍 223m from station</div>
+                        </div>
+                    </div>
+
+                    <div class="source-divider">OR ENTER CUSTOM SOURCE</div>
+
+                    <div class="custom-input-row">
+                        <input class="custom-input" id="url-input" type="text"
+                            placeholder="Video URL (.mp4 / .m3u8) or camera ID…">
+                        <button class="btn" onclick="loadCustomURL()">LOAD</button>
+                    </div>
+
+                    <button class="btn btn-webcam" onclick="loadWebcam()">📷 USE WEBCAM</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Sidebar ── -->
+        <div class="sidebar">
+
+            <!-- Risk Gauge -->
+            <div class="sidebar-section risk-gauge">
+                <div class="section-heading">Flood Risk Level</div>
+                <div class="gauge-ring">
+                    <svg viewBox="0 0 140 140">
+                        <circle class="gauge-bg" cx="70" cy="70" r="65" />
+                        <circle class="gauge-fill" id="gauge-fill" cx="70" cy="70" r="65" />
+                    </svg>
+                    <div class="gauge-center">
+                        <div class="gauge-value" id="risk-value">0</div>
+                        <div class="gauge-unit">RISK SCORE</div>
+                    </div>
+                </div>
+                <div class="risk-label safe" id="risk-label">SAFE</div>
+            </div>
+
+            <!-- Metrics -->
+            <div class="sidebar-section">
+                <div class="section-heading">Analysis Metrics</div>
+                <div class="metrics-grid">
+                    <div class="metric-card" id="mc-water">
+                        <div class="metric-val" id="m-water-pct">0%</div>
+                        <div class="metric-label">Water Pixels</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" id="bar-water"></div></div>
+                    </div>
+                    <div class="metric-card" id="mc-reflect">
+                        <div class="metric-val" id="m-reflect">0%</div>
+                        <div class="metric-label">Reflectivity</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" id="bar-reflect"></div></div>
+                    </div>
+                    <div class="metric-card" id="mc-change">
+                        <div class="metric-val" id="m-change">0%</div>
+                        <div class="metric-label">Frame Δ</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" id="bar-change"></div></div>
+                    </div>
+                    <div class="metric-card" id="mc-turbid">
+                        <div class="metric-val" id="m-turbidity">0</div>
+                        <div class="metric-label">Turbidity</div>
+                        <div class="metric-bar"><div class="metric-bar-fill" id="bar-turbid"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Color Analysis -->
+            <div class="sidebar-section">
+                <div class="section-heading">Color Distribution</div>
+                <div class="color-analysis" id="color-analysis">
+                    <div class="color-row">
+                        <div class="color-swatch" style="background: #6b5a3a;"></div>
+                        <div class="color-name">Brown</div>
+                        <div class="color-bar-track"><div class="color-bar-value" id="clr-brown" style="background: #a08060; width:0%"></div></div>
+                        <div class="color-pct" id="pct-brown">0%</div>
+                    </div>
+                    <div class="color-row">
+                        <div class="color-swatch" style="background: #4a6a8a;"></div>
+                        <div class="color-name">Blue-grey</div>
+                        <div class="color-bar-track"><div class="color-bar-value" id="clr-bluegrey" style="background: #6a9ac0; width:0%"></div></div>
+                        <div class="color-pct" id="pct-bluegrey">0%</div>
+                    </div>
+                    <div class="color-row">
+                        <div class="color-swatch" style="background: #ffffff;"></div>
+                        <div class="color-name">Bright</div>
+                        <div class="color-bar-track"><div class="color-bar-value" id="clr-bright" style="background: #e0e0e0; width:0%"></div></div>
+                        <div class="color-pct" id="pct-bright">0%</div>
+                    </div>
+                    <div class="color-row">
+                        <div class="color-swatch" style="background: #2a2a2a;"></div>
+                        <div class="color-name">Dark</div>
+                        <div class="color-bar-track"><div class="color-bar-value" id="clr-dark" style="background: #555; width:0%"></div></div>
+                        <div class="color-pct" id="pct-dark">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Google AdSense Ad Unit -->
+            <div class="sidebar-section">
+                <div class="sponsored-label">Sponsored</div>
+                <div class="sponsored-card" style="padding: 0; min-height: 125px; overflow: hidden; border-style: solid;">
+                    <!-- Active AdSense unit (Replace data-ad-slot value below when you create a display ad unit) -->
+                    <ins class="adsbygoogle"
+                         style="display:block; min-width: 250px; min-height: 125px;"
+                         data-ad-client="ca-pub-5738630038087798"
+                         data-ad-slot="9999999999"
+                         data-ad-format="auto"
+                         data-full-width-responsive="true">
+                         <!-- Fallback style preview while loading/verifying -->
+                         <div style="padding: 30px; text-align: center; color: var(--text-dim); opacity: 0.5; font-size: 0.65rem;">
+                             AdSense Active<br>
+                             <span style="font-size: 0.55rem; opacity: 0.7;">(Waiting for verification)</span>
+                         </div>
+                    </ins>
+                    <script>
+                         (adsbygoogle = window.adsbygoogle || []).push({});
+                    </script>
+                </div>
+            </div>
+
+            <!-- Zone & Baseline -->
+            <div class="sidebar-section">
+                <div class="section-heading">Monitoring Zone</div>
+                <div class="zone-controls">
+                    <div class="zone-btn active" id="zone-toggle-btn" onclick="toggleZone()">
+                        <div class="zone-btn-icon" id="zone-icon">✓</div>
+                        <div>
+                            <div class="zone-btn-text">Road Surface ROI</div>
+                            <div class="zone-btn-sub">Draw rectangle on video to set zone</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 14px;">
+                    <div class="section-heading">Baseline Frame</div>
+                    <div class="baseline-row">
+                        <button class="baseline-btn" id="baseline-btn" onclick="captureBaseline()">📸 Capture Dry Baseline</button>
+                        <button class="baseline-btn" onclick="clearBaseline()">🗑 Clear</button>
+                    </div>
+                    <div class="baseline-status" id="baseline-status">No baseline captured — auto-learning active</div>
+                </div>
+
+                <div style="margin-top: 14px;">
+                    <div class="slider-row">
+                        <div class="slider-label">Sensitivity</div>
+                        <input type="range" class="slider" id="sensitivity" min="1" max="10" value="5">
+                        <div class="slider-val" id="sens-val">5</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notifications Panel -->
+            <div class="sidebar-section">
+                <div class="section-heading">Alert Notifications</div>
+
+                <div class="notif-input-row" style="margin-top: 6px;">
+                    <input type="text" class="notif-input" id="notif-target" placeholder="Enter email address…">
+                    <button class="btn" style="padding: 8px 16px;" onclick="saveNotifSettings()">SAVE</button>
+                </div>
+
+                <div class="notif-status-bar">
+                    <div class="notif-status-dot" id="notif-status-dot"></div>
+                    <span id="notif-status-text">Email alerts: Disabled</span>
+                </div>
+            </div>
+
+            <!-- Alert Log -->
+            <div class="sidebar-section" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+                <div class="section-heading">Alert Log</div>
+                <div class="alert-log" id="alert-log">
+                    <div class="alert-line">
+                        <span class="alert-ts">--:--:--</span>
+                        <span class="alert-msg info">System initialized — select camera to begin monitoring</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden work canvas -->
+    <canvas id="work-canvas"></canvas>
+
+    <script>
+        // ════════════════════════════════════════════════════════════════
+        //  STATE
+        // ════════════════════════════════════════════════════════════════
+        const video     = document.getElementById('source-video');
+        const overlay   = document.getElementById('analysis-canvas');
+        const zoneCanvas = document.getElementById('zone-canvas');
+        const workCanvas = document.getElementById('work-canvas');
+        const octx      = overlay.getContext('2d');
+        const zctx      = zoneCanvas.getContext('2d');
+        const wctx      = workCanvas.getContext('2d');
+
+        let hls = null;
+        let analysisRunning = false;
+        let animId = null;
+        let frameCount = 0;
+        let lastFpsTime = Date.now();
+
+        // Monitoring Mode
+        let detectionMode = 'flood'; // 'flood' | 'parking'
+
+        // Zone (normalized 0-1)
+        let zoneEnabled = true;
+        let zoneNorm = { x: 0.15, y: 0.55, w: 0.70, h: 0.40 }; // Default: lower road area
+
+        // Baseline
+        let baselineData = null;  // ImageData of dry reference
+        let baselineTime = null;
+        let prevFrameData = null;
+
+        // Analysis results (smoothed)
+        let smoothedRisk = 0;
+        let riskHistory = [];
+        let stationaryFrames = 0; // Tracks consecutive static object frames
+
+        // Recording state
+        let isRecording = false;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordingStartTime = null;
+        let recordCanvas = null;
+        let recordCtx = null;
+        let recordAnimId = null;
+
+        // Notification configurations
+        let notifType = 'email';
+        let notifTarget = '';
+        let notifActive = false;
+        let lastNotifSentTime = 0; // Cooldown to avoid alert spamming
+
+        // Sensitivity
+        const sensSlider = document.getElementById('sensitivity');
+        const sensVal = document.getElementById('sens-val');
+        sensSlider.addEventListener('input', () => { sensVal.textContent = sensSlider.value; });
+
+        // Clock
+        setInterval(() => {
+            document.getElementById('clock').textContent =
+                new Date().toLocaleTimeString('en-US', { hour12: false });
+        }, 1000);
+
+        // ════════════════════════════════════════════════════════════════
+        //  MODE SELECTION
+        // ════════════════════════════════════════════════════════════════
+        function setDetectionMode(mode) {
+            if (detectionMode === mode) return;
+            detectionMode = mode;
+
+            const floodBtn = document.getElementById('mode-flood-btn');
+            const parkingBtn = document.getElementById('mode-parking-btn');
+
+            // Toggle active styles
+            if (mode === 'flood') {
+                floodBtn.classList.add('active');
+                parkingBtn.classList.remove('active');
+                addAlert('🔄 Switched to Flood Detection Mode', 'info');
+            } else {
+                parkingBtn.classList.add('active');
+                floodBtn.classList.remove('active');
+                addAlert('🔄 Switched to Parking Watch Mode', 'info');
+            }
+
+            // Update Sidebar UI Titles and Labels based on Mode
+            const gaugeTitle = document.querySelector('.risk-gauge .section-heading');
+            const gaugeUnit = document.querySelector('.gauge-unit');
+            const mWaterLabel = document.querySelector('#mc-water .metric-label');
+            const mReflectLabel = document.querySelector('#mc-reflect .metric-label');
+            const mChangeLabel = document.querySelector('#mc-change .metric-label');
+            const mTurbidLabel = document.querySelector('#mc-turbid .metric-label');
+
+            if (mode === 'flood') {
+                if (gaugeTitle) gaugeTitle.textContent = 'Flood Risk Level';
+                if (gaugeUnit) gaugeUnit.textContent = 'RISK SCORE';
+                if (mWaterLabel) mWaterLabel.textContent = 'Water Pixels';
+                if (mReflectLabel) mReflectLabel.textContent = 'Reflectivity';
+                if (mChangeLabel) mChangeLabel.textContent = 'Frame Δ';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Turbidity';
+                document.getElementById('risk-label').textContent = 'SAFE';
+                document.getElementById('risk-label').className = 'risk-label safe';
+            } else {
+                if (gaugeTitle) gaugeTitle.textContent = 'Parking Occupation';
+                if (gaugeUnit) gaugeUnit.textContent = 'PRESENCE';
+                if (mWaterLabel) mWaterLabel.textContent = 'Object Contrast';
+                if (mReflectLabel) mReflectLabel.textContent = 'Edge Complexity';
+                if (mChangeLabel) mChangeLabel.textContent = 'Motion Δ';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Occupation';
+                document.getElementById('risk-label').textContent = 'VACANT';
+                document.getElementById('risk-label').className = 'risk-label safe';
+            }
+
+            // Reset scores
+            smoothedRisk = 0;
+            stationaryFrames = 0;
+            updateGauge(0);
+            updateMetrics(0, 0, 0, 0);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  CAMERA LOADING
+        // ════════════════════════════════════════════════════════════════
+        async function loadCamera(camId, name, station, distInfo) {
+            document.getElementById('cam-name').textContent = `${name} (CAM-${camId})`;
+            document.getElementById('cam-location').textContent = `${station} · ${distInfo}`;
+            addAlert(`Loading camera ${camId}: ${name} near ${station}`, 'info');
+
+            document.getElementById('source-overlay').classList.add('hidden');
+
+            // Use Cloudflare Worker HLS proxy
+            try {
+                addAlert('Initializing stream via proxy…', 'info');
+                const resp = await fetch(`/api/hls-proxy?action=init&id=${camId}`);
+                const data = await resp.json();
+
+                if (data.ok && data.proxyPlaylist) {
+                    playHLS(data.proxyPlaylist);
+                    addAlert('Stream connected — starting flood analysis', 'safe');
+                } else if (data.directUrl) {
+                    addAlert('HLS proxy unavailable — using direct embed', 'warn');
+                    // Fallback: embed in iframe (won't support canvas analysis)
+                    video.src = data.directUrl;
+                    video.crossOrigin = 'anonymous';
+                    startAnalysis();
+                } else {
+                    addAlert(`Stream init failed: ${data.reason || 'unknown'}`, 'warn');
+                }
+            } catch (err) {
+                addAlert(`Proxy error: ${err.message}. Trying direct HLS…`, 'warn');
+                // Try direct HLS URL patterns
+                const directHls = `https://hls.bote.gov.taipei/live/cam-${camId}.m3u8`;
+                playHLS(directHls);
+            }
+        }
+
+        function playHLS(url) {
+            if (hls) { hls.destroy(); hls = null; }
+
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    maxBufferLength: 4,
+                    maxMaxBufferLength: 8,
+                    liveSyncDurationCount: 2,
+                    lowLatencyMode: false,
+                    fragLoadingMaxRetry: 6
+                });
+
+                hls.loadSource(url);
+                hls.attachMedia(video);
+
+                hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                    video.play().catch(() => {});
+                    startAnalysis();
+                });
+
+                hls.on(Hls.Events.ERROR, (_, data) => {
+                    if (data.fatal) {
+                        addAlert(`HLS Error: ${data.type}`, 'danger');
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = url;
+                video.addEventListener('loadedmetadata', () => {
+                    video.play().catch(() => {});
+                    startAnalysis();
+                }, { once: true });
+            }
+        }
+
+        function loadCustomURL() {
+            const val = document.getElementById('url-input').value.trim();
+            if (!val) return;
+
+            // Check if it's just a cam ID (3 digits)
+            if (/^\d{3}$/.test(val)) {
+                loadCamera(val, `Camera ${val}`, 'Custom', '');
+                return;
+            }
+
+            document.getElementById('cam-name').textContent = 'Custom Source';
+            document.getElementById('cam-location').textContent = val.substring(0, 50);
+            document.getElementById('source-overlay').classList.add('hidden');
+
+            if (val.endsWith('.m3u8')) {
+                playHLS(val);
+            } else {
+                video.src = val;
+                video.crossOrigin = 'anonymous';
+                video.addEventListener('loadedmetadata', () => {
+                    video.play().catch(() => {});
+                    startAnalysis();
+                }, { once: true });
+            }
+
+            addAlert('Custom source loaded', 'info');
+        }
+
+        function loadWebcam() {
+            navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false })
+                .then(stream => {
+                    video.srcObject = stream;
+                    document.getElementById('cam-name').textContent = 'Webcam';
+                    document.getElementById('cam-location').textContent = 'Local device camera';
+                    document.getElementById('source-overlay').classList.add('hidden');
+                    startAnalysis();
+                    addAlert('Webcam connected — point at area to monitor', 'info');
+                })
+                .catch(e => addAlert('Webcam denied: ' + e.message, 'danger'));
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  CANVAS SIZING
+        // ════════════════════════════════════════════════════════════════
+        function syncCanvasSize() {
+            const vw = video.videoWidth || video.clientWidth;
+            const vh = video.videoHeight || video.clientHeight;
+            if (!vw || !vh) return;
+
+            const videoRatio = vw / vh;
+            const ew = video.clientWidth;
+            const eh = video.clientHeight;
+            const eRatio = ew / eh;
+
+            let w, h, top, left;
+            if (eRatio > videoRatio) {
+                h = eh; w = h * videoRatio;
+                top = 0; left = (ew - w) / 2;
+            } else {
+                w = ew; h = w / videoRatio;
+                left = 0; top = (eh - h) / 2;
+            }
+
+            [overlay, zoneCanvas].forEach(c => {
+                c.style.width = w + 'px';
+                c.style.height = h + 'px';
+                c.style.top = top + 'px';
+                c.style.left = left + 'px';
+                c.width = vw;
+                c.height = vh;
+            });
+
+            workCanvas.width = vw;
+            workCanvas.height = vh;
+        }
+
+        window.addEventListener('resize', syncCanvasSize);
+
+        // ════════════════════════════════════════════════════════════════
+        //  ZONE DRAWING
+        // ════════════════════════════════════════════════════════════════
+        let drawing = false;
+        let dragStart = null;
+
+        zoneCanvas.addEventListener('pointerdown', e => {
+            if (!zoneEnabled) return;
+            const r = zoneCanvas.getBoundingClientRect();
+            const sx = zoneCanvas.width / r.width;
+            const sy = zoneCanvas.height / r.height;
+            dragStart = { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+            drawing = true;
+        });
+
+        zoneCanvas.addEventListener('pointermove', e => {
+            if (!drawing) return;
+            const r = zoneCanvas.getBoundingClientRect();
+            const sx = zoneCanvas.width / r.width;
+            const sy = zoneCanvas.height / r.height;
+            const cur = { x: (e.clientX - r.left) * sx, y: (e.clientY - r.top) * sy };
+            zoneNorm = {
+                x: Math.min(dragStart.x, cur.x) / zoneCanvas.width,
+                y: Math.min(dragStart.y, cur.y) / zoneCanvas.height,
+                w: Math.abs(cur.x - dragStart.x) / zoneCanvas.width,
+                h: Math.abs(cur.y - dragStart.y) / zoneCanvas.height
+            };
+        });
+
+        zoneCanvas.addEventListener('pointerup', () => {
+            drawing = false;
+            if (zoneNorm.w > 0.02 && zoneNorm.h > 0.02) {
+                addAlert('Monitoring zone updated', 'info');
+            }
+        });
+
+        function toggleZone() {
+            zoneEnabled = !zoneEnabled;
+            document.getElementById('zone-icon').textContent = zoneEnabled ? '✓' : '';
+            document.getElementById('zone-toggle-btn').classList.toggle('active', zoneEnabled);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  BASELINE
+        // ════════════════════════════════════════════════════════════════
+        function captureBaseline() {
+            if (!video.videoWidth) { addAlert('No video playing', 'warn'); return; }
+
+            const zone = getZonePixels();
+            wctx.drawImage(video, 0, 0, workCanvas.width, workCanvas.height);
+            baselineData = wctx.getImageData(zone.x, zone.y, zone.w, zone.h);
+            baselineTime = new Date();
+
+            document.getElementById('baseline-btn').classList.add('captured');
+            document.getElementById('baseline-status').textContent =
+                `Baseline captured at ${baselineTime.toLocaleTimeString('en-US', { hour12: false })}`;
+            addAlert('Dry baseline captured — flood detection enhanced', 'safe');
+        }
+
+        function clearBaseline() {
+            baselineData = null;
+            baselineTime = null;
+            document.getElementById('baseline-btn').classList.remove('captured');
+            document.getElementById('baseline-status').textContent = 'No baseline captured — auto-learning active';
+            addAlert('Baseline cleared', 'info');
+        }
+
+        function getZonePixels() {
+            const cw = workCanvas.width;
+            const ch = workCanvas.height;
+            return {
+                x: Math.floor(zoneNorm.x * cw),
+                y: Math.floor(zoneNorm.y * ch),
+                w: Math.floor(zoneNorm.w * cw),
+                h: Math.floor(zoneNorm.h * ch)
+            };
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  FLOOD ANALYSIS ENGINE
+        // ════════════════════════════════════════════════════════════════
+        function startAnalysis() {
+            if (analysisRunning) return;
+            analysisRunning = true;
+            document.getElementById('analysis-badge').textContent = 'Analysis: ON';
+            video.addEventListener('loadedmetadata', syncCanvasSize, { once: true });
+            syncCanvasSize();
+            analyzeLoop();
+        }
+
+        function analyzeLoop() {
+            if (!analysisRunning) return;
+
+            if (video.paused || video.ended || !video.videoWidth) {
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
+            // FPS counter
+            frameCount++;
+            const now = Date.now();
+            if (now - lastFpsTime >= 1000) {
+                document.getElementById('fps-badge').textContent = frameCount + ' FPS';
+                frameCount = 0;
+                lastFpsTime = now;
+            }
+
+            syncCanvasSize();
+
+            // Draw frame to work canvas
+            wctx.drawImage(video, 0, 0, workCanvas.width, workCanvas.height);
+
+            const zone = getZonePixels();
+            if (zone.w < 2 || zone.h < 2) {
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
+            const currentFrame = wctx.getImageData(zone.x, zone.y, zone.w, zone.h);
+            const pixels = currentFrame.data;
+            const totalPixels = zone.w * zone.h;
+            const sensitivity = parseInt(sensSlider.value);
+
+            let waterPct = 0, reflectivity = 0, frameDelta = 0, turbidity = 0;
+            let brownPct = 0, blueGreyPct = 0, brightPct = 0, darkPct = 0;
+            let riskScore = 0;
+
+            if (detectionMode === 'flood') {
+                // ── 1. Color Classification ──
+                let brownCount = 0;
+                let blueGreyCount = 0;
+                let brightCount = 0;
+                let darkCount = 0;
+                let waterLikeCount = 0;
+                let highSatWaterCount = 0;
+                let totalBrightness = 0;
+
+                for (let i = 0; i < pixels.length; i += 4) {
+                    const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
+                    const brightness = (r + g + b) / 3;
+                    totalBrightness += brightness;
+
+                    const max = Math.max(r, g, b);
+                    const min = Math.min(r, g, b);
+                    const delta = max - min;
+                    const sat = max === 0 ? 0 : delta / max;
+                    let hue = 0;
+                    if (delta > 0) {
+                        if (max === r) hue = 60 * (((g - b) / delta) % 6);
+                        else if (max === g) hue = 60 * ((b - r) / delta + 2);
+                        else hue = 60 * ((r - g) / delta + 4);
+                        if (hue < 0) hue += 360;
+                    }
+
+                    const isRoadMarking = brightness > 210 && sat < 0.12;
+                    const isHeadlight = brightness > 230;
+                    const isNormalPavement = sat < 0.08 && brightness > 30 && brightness < 160;
+
+                    const isBlueWater = (hue >= 180 && hue <= 250) && sat > 0.15 && brightness > 40 && brightness < 200;
+                    const isCyanWater = (hue >= 150 && hue <= 200) && sat > 0.12 && brightness > 50;
+                    const isReflective = brightness > 160 && brightness < 220 && sat < 0.10 
+                        && b > (r + g) / 2 * 0.95 && !isRoadMarking;
+                    const isMuddyWater = (hue >= 15 && hue <= 50) && sat > 0.20 && brightness > 70 && brightness < 170;
+
+                    if (!isRoadMarking && !isHeadlight) {
+                        if (isBlueWater) waterLikeCount++;
+                        else if (isCyanWater) waterLikeCount += 0.7;
+                        if (isReflective && !isNormalPavement) waterLikeCount += 0.3;
+                        if (isMuddyWater) { waterLikeCount += 0.8; highSatWaterCount++; }
+                    }
+
+                    if (hue >= 15 && hue <= 50 && sat > 0.15 && brightness > 50) brownCount++;
+                    if ((hue >= 190 && hue <= 250) && sat > 0.08 && sat < 0.40) blueGreyCount++;
+                    if (brightness > 200) brightCount++;
+                    if (brightness < 50) darkCount++;
+                }
+
+                waterPct = (waterLikeCount / totalPixels) * 100;
+                brownPct = (brownCount / totalPixels) * 100;
+                blueGreyPct = (blueGreyCount / totalPixels) * 100;
+                brightPct = (brightCount / totalPixels) * 100;
+                darkPct = (darkCount / totalPixels) * 100;
+                const avgBrightness = totalBrightness / totalPixels;
+
+                // ── 2. Reflectivity ──
+                let brightnessVariance = 0;
+                let specularCount = 0;
+                for (let i = 0; i < pixels.length; i += 16) {
+                    const b = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+                    brightnessVariance += (b - avgBrightness) ** 2;
+                    if (b > avgBrightness + 60) specularCount++;
+                }
+                brightnessVariance /= (pixels.length / 16);
+                const stdDev = Math.sqrt(brightnessVariance);
+                const specularRatio = specularCount / (pixels.length / 16);
+                reflectivity = Math.min(100, (specularRatio * 200 + Math.max(0, stdDev - 30) * 0.5));
+
+                // ── 3. Motion Δ ──
+                if (prevFrameData && prevFrameData.data.length === pixels.length) {
+                    let diffSum = 0;
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        diffSum += Math.abs(pixels[i] - prevFrameData.data[i]);
+                        diffSum += Math.abs(pixels[i + 1] - prevFrameData.data[i + 1]);
+                        diffSum += Math.abs(pixels[i + 2] - prevFrameData.data[i + 2]);
+                    }
+                    frameDelta = (diffSum / (totalPixels * 3 * 255)) * 100;
+                }
+                prevFrameData = currentFrame;
+
+                // ── 4. Baseline Comparison ──
+                let baselineDelta = 0;
+                if (baselineData && baselineData.data.length === pixels.length) {
+                    let diffSum = 0;
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        diffSum += Math.abs(pixels[i] - baselineData.data[i]);
+                        diffSum += Math.abs(pixels[i + 1] - baselineData.data[i + 1]);
+                        diffSum += Math.abs(pixels[i + 2] - baselineData.data[i + 2]);
+                    }
+                    baselineDelta = (diffSum / (totalPixels * 3 * 255)) * 100;
+                }
+
+                // ── 5. Turbidity ──
+                turbidity = Math.min(100, (highSatWaterCount / totalPixels) * 500);
+
+                // ── 6. Composite Risk Score ──
+                const sensMultiplier = sensitivity / 5;
+                const effectiveWater = Math.max(0, waterPct - 8);
+                riskScore += Math.min(30, effectiveWater * 0.6 * sensMultiplier);
+                riskScore += Math.min(15, reflectivity * 0.18 * sensMultiplier);
+                riskScore += Math.min(15, frameDelta * 3 * sensMultiplier);
+                riskScore += Math.min(25, baselineDelta * 1.8 * sensMultiplier);
+                riskScore += Math.min(15, turbidity * 0.20 * sensMultiplier);
+                riskScore = Math.min(100, Math.max(0, riskScore));
+            } else {
+                // 🚗🚗🚗 CAR PARKING WATCH MODE 🚗🚗🚗
+                // 1. Motion Delta (Frame difference)
+                let pMotion = 0;
+                if (prevFrameData && prevFrameData.data.length === pixels.length) {
+                    let diffSum = 0;
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        diffSum += Math.abs(pixels[i] - prevFrameData.data[i]);
+                        diffSum += Math.abs(pixels[i + 1] - prevFrameData.data[i + 1]);
+                        diffSum += Math.abs(pixels[i + 2] - prevFrameData.data[i + 2]);
+                    }
+                    pMotion = (diffSum / (totalPixels * 3 * 255)) * 100;
+                }
+                prevFrameData = currentFrame;
+                frameDelta = Math.min(100, pMotion * 8); // Amplify motion signals
+
+                // 2. Object Contrast (Baseline difference)
+                let pContrast = 0;
+                if (baselineData && baselineData.data.length === pixels.length) {
+                    let diffSum = 0;
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        diffSum += Math.abs(pixels[i] - baselineData.data[i]);
+                        diffSum += Math.abs(pixels[i + 1] - baselineData.data[i + 1]);
+                        diffSum += Math.abs(pixels[i + 2] - baselineData.data[i + 2]);
+                    }
+                    pContrast = (diffSum / (totalPixels * 3 * 255)) * 100;
+                }
+                waterPct = Math.min(100, pContrast * 3.5); // Contrast relative to dry baseline
+
+                // 3. Edge Complexity (Local variance - vehicles introduce sharp edges)
+                let edgeDiff = 0;
+                for (let i = 0; i < pixels.length - 8; i += 8) {
+                    const r1 = pixels[i], g1 = pixels[i+1], b1 = pixels[i+2];
+                    const r2 = pixels[i+4], g2 = pixels[i+5], b2 = pixels[i+6];
+                    const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
+                    edgeDiff += diff;
+                }
+                reflectivity = Math.min(100, (edgeDiff / (totalPixels * 3)) * 6.5);
+
+                // 4. Occupation (Sustained static object presence)
+                const sensMultiplier = sensitivity / 5;
+                const isObjectPresent = waterPct > 15 && reflectivity > 4;
+                const isStationary = frameDelta < 1.8;
+
+                if (isObjectPresent && isStationary) {
+                    // Accumulate stationary frames (~3 seconds at 30 FPS to reach 90 frames)
+                    stationaryFrames++;
+                } else if (frameDelta > 2.5) {
+                    // Continuous moving traffic resets/decays the counter rapidly
+                    stationaryFrames = Math.max(0, stationaryFrames - 15);
+                } else {
+                    // Slight motion decays it slowly
+                    stationaryFrames = Math.max(0, stationaryFrames - 2);
+                }
+
+                // Occupation score climbs based on stationary frames
+                const occupationScore = Math.min(100, (stationaryFrames / 90) * 100);
+                
+                turbidity = occupationScore; // Gauge presents Occupation Score
+                riskScore = occupationScore;
+            }
+
+            // Smooth score updates
+            smoothedRisk = smoothedRisk * 0.88 + riskScore * 0.12;
+
+            riskHistory.push(smoothedRisk);
+            if (riskHistory.length > 60) riskHistory.shift();
+
+            // ── UPDATE UI ──
+            updateGauge(smoothedRisk);
+            updateMetrics(waterPct, reflectivity, frameDelta, turbidity);
+            updateColors(brownPct, blueGreyPct, brightPct, darkPct);
+            drawOverlay(zone, smoothedRisk);
+
+            // ── ALERTS ──
+            checkAlerts(smoothedRisk);
+
+            animId = requestAnimationFrame(analyzeLoop);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  UI UPDATES
+        // ════════════════════════════════════════════════════════════════
+        function getRiskColor(risk) {
+            if (detectionMode === 'flood') {
+                if (risk < 15) return { color: 'var(--safe)', cls: 'safe', label: 'SAFE' };
+                if (risk < 35) return { color: 'var(--accent)', cls: 'low', label: 'LOW' };
+                if (risk < 60) return { color: 'var(--warn)', cls: 'medium', label: 'MEDIUM' };
+                if (risk < 80) return { color: 'var(--danger)', cls: 'high', label: 'HIGH' };
+                return { color: 'var(--critical)', cls: 'critical', label: 'CRITICAL' };
+            } else {
+                if (risk < 20) return { color: 'var(--safe)', cls: 'safe', label: 'VACANT' };
+                if (risk < 45) return { color: 'var(--accent)', cls: 'low', label: 'STATIONARY' };
+                if (risk < 70) return { color: 'var(--warn)', cls: 'medium', label: 'OCCUPIED' };
+                return { color: 'var(--danger)', cls: 'critical', label: 'PARKED' };
+            }
+        }
+
+        function updateGauge(risk) {
+            const rc = getRiskColor(risk);
+            const circumference = 2 * Math.PI * 65; // ~408
+            const offset = circumference - (risk / 100) * circumference;
+
+            const fill = document.getElementById('gauge-fill');
+            fill.style.strokeDashoffset = offset;
+            fill.style.stroke = rc.color;
+            fill.style.filter = `drop-shadow(0 0 8px ${rc.color})`;
+
+            const valueEl = document.getElementById('risk-value');
+            valueEl.textContent = Math.round(risk);
+            valueEl.style.color = rc.color;
+            valueEl.style.textShadow = `0 0 20px ${rc.color}`;
+
+            const labelEl = document.getElementById('risk-label');
+            labelEl.textContent = rc.label;
+            labelEl.className = 'risk-label ' + rc.cls;
+
+            // Video section flooding effect
+            document.getElementById('video-section').classList.toggle('flooding', risk >= 80);
+        }
+
+        function updateMetrics(water, reflect, change, turbid) {
+            document.getElementById('m-water-pct').textContent = water.toFixed(1) + '%';
+            document.getElementById('m-reflect').textContent = reflect.toFixed(1) + '%';
+            document.getElementById('m-change').textContent = change.toFixed(2) + '%';
+            document.getElementById('m-turbidity').textContent = turbid.toFixed(0);
+
+            document.getElementById('bar-water').style.width = Math.min(100, water) + '%';
+            document.getElementById('bar-reflect').style.width = Math.min(100, reflect) + '%';
+            document.getElementById('bar-change').style.width = Math.min(100, change * 10) + '%';
+            document.getElementById('bar-turbid').style.width = Math.min(100, turbid) + '%';
+
+            // Color the bars based on severity
+            const waterColor = water > 30 ? 'var(--danger)' : water > 15 ? 'var(--warn)' : 'var(--accent)';
+            document.getElementById('bar-water').style.background = waterColor;
+            document.getElementById('m-water-pct').style.color = waterColor;
+        }
+
+        function updateColors(brown, blueGrey, bright, dark) {
+            document.getElementById('clr-brown').style.width = Math.min(100, brown) + '%';
+            document.getElementById('pct-brown').textContent = brown.toFixed(1) + '%';
+
+            document.getElementById('clr-bluegrey').style.width = Math.min(100, blueGrey) + '%';
+            document.getElementById('pct-bluegrey').textContent = blueGrey.toFixed(1) + '%';
+
+            document.getElementById('clr-bright').style.width = Math.min(100, bright) + '%';
+            document.getElementById('pct-bright').textContent = bright.toFixed(1) + '%';
+
+            document.getElementById('clr-dark').style.width = Math.min(100, dark) + '%';
+            document.getElementById('pct-dark').textContent = dark.toFixed(1) + '%';
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  OVERLAY DRAWING
+        // ════════════════════════════════════════════════════════════════
+        function drawOverlay(zone, risk) {
+            octx.clearRect(0, 0, overlay.width, overlay.height);
+
+            // ── Always draw timestamp on video ──
+            drawTimestamp();
+
+            if (!zoneEnabled) return;
+
+            const rc = getRiskColor(risk);
+            const zx = zone.x, zy = zone.y, zw = zone.w, zh = zone.h;
+
+            // Semi-transparent zone fill
+            octx.save();
+            octx.globalAlpha = 0.08 + (risk / 100) * 0.15;
+            octx.fillStyle = rc.color;
+            octx.fillRect(zx, zy, zw, zh);
+            octx.restore();
+
+            // Water wave effect when risk is high
+            if (risk > 40) {
+                octx.save();
+                octx.globalAlpha = 0.06 * (risk / 100);
+                const t = Date.now() / 1000;
+                for (let y = zy; y < zy + zh; y += 8) {
+                    const offset = Math.sin(y * 0.05 + t * 2) * 3 * (risk / 100);
+                    octx.fillStyle = rc.color;
+                    octx.fillRect(zx + offset, y, zw, 4);
+                }
+                octx.restore();
+            }
+
+            // Border
+            octx.setLineDash([8, 4]);
+            octx.strokeStyle = rc.color;
+            octx.lineWidth = 2;
+            octx.shadowBlur = 12;
+            octx.shadowColor = rc.color;
+            octx.strokeRect(zx, zy, zw, zh);
+            octx.setLineDash([]);
+            octx.shadowBlur = 0;
+
+            // Label
+            const labelText = detectionMode === 'flood'
+                ? `FLOOD MONITOR · RISK: ${Math.round(risk)}%`
+                : `PARKING WATCH · SCORE: ${Math.round(risk)}%`;
+            octx.font = 'bold 11px Orbitron, monospace';
+            const tw = octx.measureText(labelText).width;
+            octx.fillStyle = 'rgba(0,0,0,0.6)';
+            octx.fillRect(zx, zy - 24, tw + 16, 22);
+            octx.fillStyle = rc.color;
+            octx.fillText(labelText, zx + 8, zy - 8);
+
+            // Corner markers
+            const cornerLen = 16;
+            octx.strokeStyle = rc.color;
+            octx.lineWidth = 3;
+            octx.shadowBlur = 8;
+            octx.shadowColor = rc.color;
+
+            // Top-left
+            octx.beginPath();
+            octx.moveTo(zx, zy + cornerLen); octx.lineTo(zx, zy); octx.lineTo(zx + cornerLen, zy);
+            octx.stroke();
+            // Top-right
+            octx.beginPath();
+            octx.moveTo(zx + zw - cornerLen, zy); octx.lineTo(zx + zw, zy); octx.lineTo(zx + zw, zy + cornerLen);
+            octx.stroke();
+            // Bottom-left
+            octx.beginPath();
+            octx.moveTo(zx, zy + zh - cornerLen); octx.lineTo(zx, zy + zh); octx.lineTo(zx + cornerLen, zy + zh);
+            octx.stroke();
+            // Bottom-right
+            octx.beginPath();
+            octx.moveTo(zx + zw - cornerLen, zy + zh); octx.lineTo(zx + zw, zy + zh); octx.lineTo(zx + zw, zy + zh - cornerLen);
+            octx.stroke();
+
+            octx.shadowBlur = 0;
+        }
+
+        // ── Timestamp Overlay (CCTV-style) ──
+        function drawTimestamp() {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mi = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            const dateStr = `${yyyy}-${mm}-${dd}`;
+            const timeStr = `${hh}:${mi}:${ss}`;
+            const fullStamp = `${dateStr}  ${timeStr}`;
+
+            const cw = overlay.width;
+            const fontSize = Math.max(14, Math.round(cw * 0.018));
+
+            octx.save();
+
+            // ── Bottom-right: Date & Time ──
+            octx.font = `bold ${fontSize}px 'Orbitron', monospace`;
+            const stampWidth = octx.measureText(fullStamp).width;
+            const stampX = cw - stampWidth - 24;
+            const stampY = overlay.height - 18;
+            const padX = 10, padY = 6;
+
+            // Background pill
+            octx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+            const bgX = stampX - padX;
+            const bgY = stampY - fontSize - padY + 4;
+            const bgW = stampWidth + padX * 2;
+            const bgH = fontSize + padY * 2;
+            octx.beginPath();
+            octx.roundRect(bgX, bgY, bgW, bgH, 4);
+            octx.fill();
+
+            // Border
+            octx.strokeStyle = 'rgba(0, 200, 255, 0.3)';
+            octx.lineWidth = 1;
+            octx.beginPath();
+            octx.roundRect(bgX, bgY, bgW, bgH, 4);
+            octx.stroke();
+
+            // Date text
+            octx.fillStyle = 'rgba(0, 200, 255, 0.85)';
+            octx.fillText(dateStr, stampX, stampY);
+
+            // Time text (brighter)
+            const dateWidth = octx.measureText(dateStr + '  ').width;
+            octx.fillStyle = '#ffffff';
+            octx.shadowBlur = 6;
+            octx.shadowColor = 'rgba(0, 200, 255, 0.5)';
+            octx.fillText(timeStr, stampX + dateWidth, stampY);
+            octx.shadowBlur = 0;
+
+            // ── Top-right: REC indicator (only when actually recording) ──
+            if (isRecording) {
+                const recFontSize = Math.max(11, Math.round(cw * 0.013));
+                const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+                const recMin = String(Math.floor(elapsed / 60)).padStart(2, '0');
+                const recSec = String(elapsed % 60).padStart(2, '0');
+                const recText = `REC ${recMin}:${recSec}`;
+                octx.font = `bold ${recFontSize}px 'Orbitron', monospace`;
+                const recTW = octx.measureText(recText).width;
+                const recBoxW = recTW + 32;
+                const recBoxH = recFontSize + 12;
+                const recX = cw - recBoxW - 16;
+                const recY = 50;
+
+                // Blinking
+                const blinkOn = Math.floor(Date.now() / 800) % 2 === 0;
+
+                // Background
+                octx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                octx.beginPath();
+                octx.roundRect(recX, recY, recBoxW, recBoxH, 4);
+                octx.fill();
+
+                // Border
+                octx.strokeStyle = 'rgba(255, 51, 85, 0.5)';
+                octx.lineWidth = 1;
+                octx.beginPath();
+                octx.roundRect(recX, recY, recBoxW, recBoxH, 4);
+                octx.stroke();
+
+                // Red dot
+                if (blinkOn) {
+                    octx.beginPath();
+                    octx.arc(recX + 14, recY + recBoxH / 2, 5, 0, Math.PI * 2);
+                    octx.fillStyle = '#ff3355';
+                    octx.shadowBlur = 8;
+                    octx.shadowColor = '#ff3355';
+                    octx.fill();
+                    octx.shadowBlur = 0;
+                }
+
+                // REC + duration text
+                octx.font = `bold ${recFontSize}px 'Orbitron', monospace`;
+                octx.fillStyle = blinkOn ? '#ff3355' : 'rgba(255, 51, 85, 0.4)';
+                octx.fillText(recText, recX + 26, recY + recBoxH / 2 + recFontSize / 3);
+            }
+
+            octx.restore();
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  ALERTS
+        // ════════════════════════════════════════════════════════════════
+        let lastAlertLevel = 'safe';
+        let alertCooldown = 0;
+
+        function checkAlerts(risk) {
+            const rc = getRiskColor(risk);
+            if (alertCooldown > 0) { alertCooldown--; return; }
+
+            if (rc.cls !== lastAlertLevel) {
+                if (detectionMode === 'flood') {
+                    if (rc.cls === 'medium' && lastAlertLevel === 'safe' || lastAlertLevel === 'low') {
+                        addAlert('⚠️ Water indicators rising — monitor closely', 'warn');
+                        alertCooldown = 120;
+                    } else if (rc.cls === 'high') {
+                        addAlert('🔴 HIGH FLOOD RISK — Significant water detected on road surface', 'danger');
+                        alertCooldown = 180;
+                        triggerNotification(risk, rc.label);
+                    } else if (rc.cls === 'critical') {
+                        addAlert('🚨 CRITICAL — FLOODING DETECTED — Road likely submerged!', 'danger');
+                        alertCooldown = 300;
+                        triggerNotification(risk, rc.label);
+                    } else if (rc.cls === 'safe' && (lastAlertLevel === 'high' || lastAlertLevel === 'critical')) {
+                        addAlert('✅ Water levels receding — conditions improving', 'safe');
+                        alertCooldown = 120;
+                    }
+                } else {
+                    // Parking mode alerts
+                    if (rc.cls === 'medium') {
+                        addAlert('⚠️ Vehicle occupying designated monitoring zone', 'warn');
+                        alertCooldown = 150;
+                    } else if (rc.cls === 'critical') {
+                        addAlert('🚨 ALERT: Vehicle has PARKED in the designated zone!', 'danger');
+                        alertCooldown = 300;
+                        triggerNotification(risk, rc.label);
+                    } else if (rc.cls === 'safe' && (lastAlertLevel === 'medium' || lastAlertLevel === 'critical')) {
+                        addAlert('✅ Monitored zone is now VACANT / Clear', 'safe');
+                        alertCooldown = 120;
+                    }
+                }
+                lastAlertLevel = rc.cls;
+            }
+        }
+
+        function addAlert(msg, cls = '') {
+            const log = document.getElementById('alert-log');
+            const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+            const line = document.createElement('div');
+            line.className = 'alert-line';
+            line.innerHTML = `<span class="alert-ts">${ts}</span><span class="alert-msg ${cls}">${msg}</span>`;
+            log.insertBefore(line, log.firstChild);
+            if (log.children.length > 50) log.removeChild(log.lastChild);
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  RECORDING
+        // ════════════════════════════════════════════════════════════════
+        function toggleRecording() {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        }
+
+        function startRecording() {
+            if (!video.videoWidth) {
+                addAlert('Cannot record — no video playing', 'warn');
+                return;
+            }
+
+            // Create a composite canvas that draws video + overlay together
+            recordCanvas = document.createElement('canvas');
+            recordCanvas.width = video.videoWidth;
+            recordCanvas.height = video.videoHeight;
+            recordCtx = recordCanvas.getContext('2d');
+
+            // Start compositing frames
+            function compositeFrame() {
+                if (!isRecording) return;
+                recordCtx.drawImage(video, 0, 0, recordCanvas.width, recordCanvas.height);
+                recordCtx.drawImage(overlay, 0, 0, recordCanvas.width, recordCanvas.height);
+                recordAnimId = requestAnimationFrame(compositeFrame);
+            }
+
+            // Capture canvas stream at 30fps
+            const stream = recordCanvas.captureStream(30);
+
+            // Try to add audio from video if available
+            try {
+                if (video.captureStream) {
+                    const videoStream = video.captureStream();
+                    const audioTracks = videoStream.getAudioTracks();
+                    audioTracks.forEach(t => stream.addTrack(t));
+                }
+            } catch (e) { /* No audio available */ }
+
+            // Set up MediaRecorder
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm;codecs=vp8';
+
+            mediaRecorder = new MediaRecorder(stream, {
+                mimeType,
+                videoBitsPerSecond: 2500000 // 2.5 Mbps
+            });
+
+            recordedChunks = [];
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) recordedChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: mimeType });
+                const sizeMB = (blob.size / (1024 * 1024)).toFixed(2);
+                const camName = document.getElementById('cam-name').textContent.replace(/[^\w\-]/g, '_');
+                const now = new Date();
+                const ts = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                const filename = `flood_${camName}_${ts}.webm`;
+
+                addAlert(`Recording stopped — ${sizeMB} MB — saving to device…`, 'info');
+
+                // Directly download file in browser
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(url);
+                addAlert(`📥 Downloaded recording: ${filename}`, 'safe');
+            };
+
+            // Start!
+            isRecording = true;
+            recordingStartTime = Date.now();
+            mediaRecorder.start(1000); // Collect data every 1 second
+            compositeFrame();
+
+            // Update button
+            const btn = document.getElementById('rec-btn');
+            btn.classList.add('recording');
+            btn.querySelector('.rec-dot').className = 'rec-square';
+            document.getElementById('rec-btn-text').textContent = 'STOP';
+
+            addAlert('🔴 Recording started — video + overlay being captured', 'danger');
+        }
+
+        function stopRecording() {
+            if (!isRecording || !mediaRecorder) return;
+
+            isRecording = false;
+            mediaRecorder.stop();
+
+            if (recordAnimId) {
+                cancelAnimationFrame(recordAnimId);
+                recordAnimId = null;
+            }
+
+            // Update button
+            const btn = document.getElementById('rec-btn');
+            btn.classList.remove('recording');
+            btn.querySelector('.rec-square').className = 'rec-dot';
+            document.getElementById('rec-btn-text').textContent = 'REC';
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  NOTIFICATION SERVICES
+        // ════════════════════════════════════════════════════════════════
+        function saveNotifSettings() {
+            const inputVal = document.getElementById('notif-target').value.trim();
+            const dot = document.getElementById('notif-status-dot');
+            const txt = document.getElementById('notif-status-text');
+
+            if (!inputVal) {
+                // Disable notifications if empty
+                notifActive = false;
+                notifTarget = '';
+                localStorage.removeItem('notif_target_email');
+                localStorage.setItem('notif_active_email', 'false');
+                dot.className = 'notif-status-dot';
+                txt.textContent = 'Email alerts: Disabled';
+                addAlert('Notifications disabled', 'info');
+                return;
+            }
+
+            // Simple validation
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inputVal)) {
+                addAlert('⚠️ Invalid email address format', 'warn');
+                return;
+            }
+
+            notifActive = true;
+            notifTarget = inputVal;
+            localStorage.setItem('notif_target_email', inputVal);
+            localStorage.setItem('notif_active_email', 'true');
+
+            dot.className = 'notif-status-dot active';
+            txt.textContent = 'Email alerts active';
+            addAlert('🔔 Email alerts configured successfully', 'safe');
+        }
+
+        function loadNotifSettings() {
+            const savedEmail = localStorage.getItem('notif_target_email') || '';
+            const emailActive = localStorage.getItem('notif_active_email') === 'true';
+
+            const dot = document.getElementById('notif-status-dot');
+            const txt = document.getElementById('notif-status-text');
+            const input = document.getElementById('notif-target');
+
+            input.value = savedEmail;
+
+            if (emailActive && savedEmail) {
+                notifActive = true;
+                notifTarget = savedEmail;
+                dot.className = 'notif-status-dot active';
+                txt.textContent = 'Email alerts active';
+            } else {
+                notifActive = false;
+                notifTarget = '';
+                dot.className = 'notif-status-dot';
+                txt.textContent = 'Email alerts: Disabled';
+            }
+        }
+
+        async function triggerNotification(riskScore, level) {
+            if (!notifActive || !notifTarget) return;
+
+            const now = Date.now();
+            const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown to avoid email spamming
+
+            if (now - lastNotifSentTime < COOLDOWN_MS) {
+                console.log('[notifications] Cooldown active, skipping alert send.');
+                return;
+            }
+
+            lastNotifSentTime = now;
+            const camName = document.getElementById('cam-name').textContent;
+            addAlert('🚀 Triggering remote notification (Email)…', 'info');
+
+            try {
+                const resp = await fetch('/api/send-alert', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'email',
+                        target: notifTarget,
+                        riskScore: riskScore,
+                        camera: camName,
+                        timestamp: new Date().toLocaleString('zh-TW')
+                    })
+                });
+                
+                const data = await resp.json();
+                if (data.ok) {
+                    addAlert('✅ Notification delivered via Email', 'safe');
+                } else {
+                    throw new Error(data.error || 'Server error');
+                }
+            } catch (err) {
+                addAlert(`⚠️ Alert transmission failed: ${err.message}`, 'warn');
+                // Reset cooldown so it can retry on next threshold check
+                lastNotifSentTime = 0;
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  INIT
+        // ════════════════════════════════════════════════════════════════
+        loadNotifSettings();
+        addAlert('FloodWatch AI initialized — select a camera to begin', 'info');
+        addAlert('Pre-loaded: Neihu District cameras near Brown Line MRT', 'info');
+    </script>
+
+</body>
+
+</html>
