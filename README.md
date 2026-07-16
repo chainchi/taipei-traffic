@@ -2,6 +2,8 @@
 
 A real-time urban intelligence platform for **Neihu District, Taipei**, combining live traffic monitoring, CCTV-based AI pedestrian detection, and computer vision flood risk analysis — all in a dark-mode, glassmorphic web dashboard.
 
+**Author:** Lawrence Chen
+
 ---
 
 ## ✨ Features at a Glance
