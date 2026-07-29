@@ -136,39 +136,6 @@ async function handlePlaylist(camId, params) {
 
     let body = await resp.text();
 
-    // For very short sliding windows (≤3 segments ~2s each ≈ 6s total),
-    // serve ONLY the latest segment to prevent 410 Gone expiry race conditions.
-    const segmentPairs = []; // Each entry: { extinf, filename }
-    const rawLines = body.split('\n');
-    for (let i = 0; i < rawLines.length; i++) {
-        if (rawLines[i].startsWith('#EXTINF')) {
-            // Find the next non-empty, non-comment line (the segment filename)
-            for (let j = i + 1; j < rawLines.length; j++) {
-                const seg = rawLines[j].trim();
-                if (seg && !seg.startsWith('#')) {
-                    segmentPairs.push({ extinf: rawLines[i], filename: seg });
-                    break;
-                }
-            }
-        }
-    }
-
-    if (segmentPairs.length > 0 && segmentPairs.length <= 3) {
-        const last = segmentPairs[segmentPairs.length - 1];
-        const baseSeq = parseInt(body.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/)?.[1] || '0', 10);
-        const lastSeq = baseSeq + segmentPairs.length - 1;
-        const targetDuration = body.match(/#EXT-X-TARGETDURATION:(\d+)/)?.[1] || '3';
-        const version = body.match(/#EXT-X-VERSION:(\d+)/)?.[1] || '3';
-        body = [
-            '#EXTM3U',
-            `#EXT-X-VERSION:${version}`,
-            `#EXT-X-TARGETDURATION:${targetDuration}`,
-            `#EXT-X-MEDIA-SEQUENCE:${lastSeq}`,
-            last.extinf,
-            last.filename,
-        ].join('\n') + '\n';
-    }
-
     // Rewrite .ts segment URLs to go through our proxy
     body = body.replace(/^(?!#)(.+\.ts\S*)/gm, (match) => {
         const file = match.trim();

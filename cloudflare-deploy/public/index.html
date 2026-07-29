@@ -1904,12 +1904,13 @@
                 // liveSyncDurationCount=1 means start playing 1 segment back from edge,
                 // keeping segments fresh and avoiding 410 Gone on short 6-second windows.
                 hls = new Hls({
-                    maxBufferLength: 2,
-                    maxMaxBufferLength: 4,
-                    liveSyncDurationCount: 1,
+                    maxBufferLength: 8,
+                    maxMaxBufferLength: 16,
+                    liveSyncDurationCount: 2,
                     lowLatencyMode: false,
                     fragLoadingMaxRetry: 8,
-                    manifestLoadingMaxRetry: 5
+                    manifestLoadingMaxRetry: 8,
+                    manifestLoadingRetryDelay: 1000
                 });
 
                 // Append cache-buster to prevent stale playlist caching
@@ -1933,8 +1934,13 @@
                         // Attempt automatic recovery
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                addAlert('🔄 Network issue — retrying stream connection…', 'info');
-                                hls.startLoad();
+                                addAlert('🔄 Network/manifest issue — retrying connection…', 'info');
+                                setTimeout(() => {
+                                    if (hls) {
+                                        const retryUrl = url + (url.includes('?') ? '&' : '?') + '_cb=' + Date.now();
+                                        hls.loadSource(retryUrl);
+                                    }
+                                }, 1500);
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
                                 addAlert('🔄 Decoding issue — attempting media recovery…', 'info');
