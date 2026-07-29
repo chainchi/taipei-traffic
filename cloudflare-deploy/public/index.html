@@ -1881,6 +1881,10 @@
                 if (data.ok && data.proxyPlaylist) {
                     playHLS(data.proxyPlaylist);
                     addAlert('Stream connected — starting flood analysis', 'safe');
+                } else if (data.frozen) {
+                    // Camera is responding but its HLS feed is not advancing — upstream frozen
+                    addAlert(`📡 Camera ${camId} signal is currently frozen or offline. The camera hardware is responding but not sending new frames. Please try another camera or check back later.`, 'warn');
+                    showNoSignal(camId);
                 } else if (data.directUrl) {
                     addAlert('HLS proxy unavailable — using direct embed', 'warn');
                     video.src = data.directUrl;
@@ -1894,6 +1898,28 @@
                 const directHls = `https://hls.bote.gov.taipei/live/cam-${camId}.m3u8`;
                 playHLS(directHls);
             }
+        }
+
+        function showNoSignal(camId) {
+            // Show the existing animated no-signal canvas with a frozen label
+            startNoSignal();
+            // Brief overlay message so user knows this specific cam is frozen
+            const noSigCanvas = document.getElementById('no-signal-canvas');
+            const ctx = noSigCanvas.getContext('2d');
+            // Draw a frozen label on top after a brief delay (let base animation start first)
+            setTimeout(() => {
+                const w = noSigCanvas.width || noSigCanvas.clientWidth;
+                const h = noSigCanvas.height || noSigCanvas.clientHeight;
+                ctx.save();
+                ctx.font = 'bold 14px Orbitron, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(255, 170, 34, 0.9)';
+                ctx.fillText(`⚠ CAM-${camId}: FEED FROZEN / OFFLINE`, w / 2, h * 0.75);
+                ctx.font = '11px Inter, sans-serif';
+                ctx.fillStyle = 'rgba(160, 180, 200, 0.7)';
+                ctx.fillText('Signal not updating — try another camera', w / 2, h * 0.75 + 22);
+                ctx.restore();
+            }, 300);
         }
 
         function playHLS(url) {

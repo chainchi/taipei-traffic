@@ -96,6 +96,36 @@ async function resolveStreamUrl(camId) {
 async function handleInit(camId) {
     try {
         const m3u8Url = await resolveStreamUrl(camId);
+
+        // ── Frozen stream detection ──────────────────────────────────────
+        // Fetch the playlist twice with a short gap and compare the media
+        // sequence number. A live camera advances; a frozen/stuck feed does not.
+        let frozen = false;
+        try {
+            const r1 = await fetch(m3u8Url, { headers: FETCH_HEADERS });
+            const body1 = await r1.text();
+            const seq1 = parseInt(body1.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/)?.[1] || '0', 10);
+
+            // Wait 4 seconds (more than one segment duration) then check again
+            await new Promise(res => setTimeout(res, 4000));
+
+            const r2 = await fetch(m3u8Url, { headers: FETCH_HEADERS });
+            const body2 = await r2.text();
+            const seq2 = parseInt(body2.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/)?.[1] || '0', 10);
+
+            frozen = (seq2 === seq1); // No sequence advance = frozen feed
+        } catch (_) {
+            // If the check itself fails, assume not frozen and let HLS.js handle it
+        }
+
+        if (frozen) {
+            return jsonResponse({
+                ok: false,
+                frozen: true,
+                reason: `Camera ${camId} feed is frozen — upstream signal is not updating. This camera may be temporarily offline or under maintenance.`,
+            }, 200);
+        }
+
         return jsonResponse({
             ok: true,
             proxyPlaylist: `/api/hls-proxy?action=playlist&id=${camId}`,
