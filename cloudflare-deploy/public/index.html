@@ -1957,16 +1957,38 @@
                     if (data.fatal) {
                         addAlert(`🚨 HLS Fatal Error: ${errDetail}`, 'danger');
                         
+                        // Extract cam ID from the proxy URL if available
+                        const camMatch = url.match(/[?&]id=(\d+)/);
+                        const camIdFromUrl = camMatch ? camMatch[1] : null;
+
                         // Attempt automatic recovery
                         switch (data.type) {
                             case Hls.ErrorTypes.NETWORK_ERROR:
-                                addAlert('🔄 Network/manifest issue — retrying connection…', 'info');
-                                setTimeout(() => {
-                                    if (hls) {
-                                        const retryUrl = url + (url.includes('?') ? '&' : '?') + '_cb=' + Date.now();
-                                        hls.loadSource(retryUrl);
-                                    }
-                                }, 1500);
+                                if (camIdFromUrl) {
+                                    // Re-call init so the seqCache can now detect a frozen feed
+                                    addAlert('🔄 Stream unavailable — re-checking camera status…', 'info');
+                                    hls.destroy(); hls = null;
+                                    setTimeout(async () => {
+                                        try {
+                                            const resp = await fetch(`/api/hls-proxy?action=init&id=${camIdFromUrl}`);
+                                            const d = await resp.json();
+                                            if (d.frozen) {
+                                                addAlert(`📡 Camera ${camIdFromUrl} confirmed frozen — signal not updating.`, 'warn');
+                                                showNoSignal(camIdFromUrl);
+                                            } else if (d.ok && d.proxyPlaylist) {
+                                                playHLS(d.proxyPlaylist);
+                                            } else {
+                                                addAlert(`❌ Camera ${camIdFromUrl} offline: ${d.reason || 'unknown'}`, 'danger');
+                                                showNoSignal(camIdFromUrl);
+                                            }
+                                        } catch (e) {
+                                            addAlert('❌ Could not re-check camera status', 'danger');
+                                        }
+                                    }, 2000);
+                                } else {
+                                    addAlert('🔄 Network issue — retrying…', 'info');
+                                    setTimeout(() => { if (hls) { hls.loadSource(url + '&_cb=' + Date.now()); } }, 2000);
+                                }
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
                                 addAlert('🔄 Decoding issue — attempting media recovery…', 'info');

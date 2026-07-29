@@ -93,36 +93,51 @@ async function resolveStreamUrl(camId) {
     return m3u8Url;
 }
 
+// Per-camera sequence tracking for frozen detection { seq, checkedAt }
+const seqCache = new Map();
+
 async function handleInit(camId) {
     try {
         const m3u8Url = await resolveStreamUrl(camId);
 
-        // ── Frozen stream detection ──────────────────────────────────────
-        // Fetch the playlist twice with a short gap and compare the media
-        // sequence number. A live camera advances; a frozen/stuck feed does not.
+        // ── Fast Frozen Stream Detection ─────────────────────────────────
+        // Fetch the playlist and check if the media sequence is advancing
+        // compared to the last time we saw this camera (cached).
+        // On the very first call we cache the seq and return ok immediately.
+        // On repeat calls (e.g. user clicks again, or auto-retry), if the
+        // sequence hasn't moved since the last check, flag as frozen.
         let frozen = false;
         try {
-            const r1 = await fetch(m3u8Url, { headers: FETCH_HEADERS });
-            const body1 = await r1.text();
-            const seq1 = parseInt(body1.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/)?.[1] || '0', 10);
+            const r = await fetch(m3u8Url, { headers: FETCH_HEADERS });
+            const body = await r.text();
+            const seq = parseInt(body.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/)?.[1] || '0', 10);
+            const targetDur = parseFloat(body.match(/#EXT-X-TARGETDURATION:(\d+)/)?.[1] || '3');
+            const now = Date.now();
 
-            // Wait 4 seconds (more than one segment duration) then check again
-            await new Promise(res => setTimeout(res, 4000));
-
-            const r2 = await fetch(m3u8Url, { headers: FETCH_HEADERS });
-            const body2 = await r2.text();
-            const seq2 = parseInt(body2.match(/#EXT-X-MEDIA-SEQUENCE:(\d+)/)?.[1] || '0', 10);
-
-            frozen = (seq2 === seq1); // No sequence advance = frozen feed
+            const prev = seqCache.get(camId);
+            if (prev) {
+                // How many segments SHOULD have elapsed since last check?
+                const elapsedSec = (now - prev.checkedAt) / 1000;
+                const expectedAdvance = Math.floor(elapsedSec / targetDur);
+                // If at least 2 full segments should have elapsed but seq is same → frozen
+                if (expectedAdvance >= 2 && seq === prev.seq) {
+                    frozen = true;
+                }
+            }
+            // Update cache
+            seqCache.set(camId, { seq, checkedAt: now });
         } catch (_) {
-            // If the check itself fails, assume not frozen and let HLS.js handle it
+            // Playlist fetch failed — not conclusive, let HLS.js handle it
         }
 
         if (frozen) {
+            // Evict stale cache so next check is fresh
+            seqCache.delete(camId);
+            streamCache.delete(camId);
             return jsonResponse({
                 ok: false,
                 frozen: true,
-                reason: `Camera ${camId} feed is frozen — upstream signal is not updating. This camera may be temporarily offline or under maintenance.`,
+                reason: `Camera ${camId} feed is frozen — upstream signal is not updating. The camera may be temporarily offline or under maintenance.`,
             }, 200);
         }
 
