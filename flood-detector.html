@@ -1013,12 +1013,90 @@
         .mode-btn:hover {
             border-color: var(--accent);
             color: #fff;
-        }
         .mode-btn.active {
             border-color: var(--accent);
             color: var(--accent);
             background: rgba(0, 200, 255, 0.08);
             box-shadow: 0 0 8px var(--glow);
+        }
+
+        /* ── Feedback Modal & Overlay (hidden by default) ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(3, 8, 16, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 9999;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+            opacity: 0 !important;
+            pointer-events: none !important;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1 !important;
+            pointer-events: auto !important;
+        }
+
+        .modal-card {
+            background: rgba(12, 18, 35, 0.96);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            width: 90%;
+            max-width: 480px;
+            position: relative;
+            transform: scale(0.92);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+            color: var(--text);
+            padding: 24px;
+        }
+
+        .modal-overlay.active .modal-card {
+            transform: scale(1);
+        }
+
+        .btn-close-modal {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+
+        .btn-close-modal:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .feedback-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 9990;
+            background: var(--accent);
+            color: #000;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 200, 255, 0.3);
+            border: none;
         }
 
         /* ── Responsive ── */
@@ -2395,13 +2473,178 @@
             }
         }
 
+        // ── Feedback Modal Logic ──
+        const SHEETS_FEEDBACK_API = 'https://script.google.com/macros/s/AKfycbyzZ6elY9n_Bnn6gRVukIYZ0TSwfscJkKLLhpuSdR-FvK8UQ0YkjTL5xtSSMm6SckkOYg/exec';
+
+        function initFeedbackModal() {
+            const modal = document.getElementById('feedback-modal');
+            const openBtn = document.getElementById('btn-open-feedback');
+            const closeBtn = document.getElementById('btn-close-feedback');
+
+            if (openBtn) {
+                openBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    document.getElementById('feedback-error').textContent = '';
+                    document.getElementById('feedback-success').style.display = 'none';
+                    document.getElementById('feedback-message').value = '';
+                    document.getElementById('feedback-name').value = '';
+                    document.getElementById('feedback-email').value = '';
+                    modal.classList.add('active');
+                });
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => modal.classList.remove('active'));
+            }
+
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) modal.classList.remove('active');
+                });
+            }
+        }
+
+        async function sendAppFeedback() {
+            const category = document.getElementById('feedback-category').value;
+            const name = document.getElementById('feedback-name').value.trim();
+            const email = document.getElementById('feedback-email').value.trim();
+            const message = document.getElementById('feedback-message').value.trim();
+            const errEl = document.getElementById('feedback-error');
+            const successEl = document.getElementById('feedback-success');
+            const submitBtn = document.getElementById('btn-feedback-submit');
+
+            errEl.textContent = '';
+            successEl.style.display = 'none';
+
+            if (!message) {
+                errEl.textContent = 'Please enter a message. (請填寫內容)';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '⏳ Sending... (送出中)';
+
+            const payload = {
+                action: 'feedback',
+                category: category,
+                name: name || 'Anonymous',
+                email: email || 'No email',
+                message: `[Taipei Traffic / FloodWatch] ${message}`
+            };
+
+            try {
+                const res = await fetch(SHEETS_FEEDBACK_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const json = await res.json();
+                if (json.success) {
+                    successEl.style.display = 'block';
+                    document.getElementById('feedback-message').value = '';
+                    document.getElementById('feedback-name').value = '';
+                    document.getElementById('feedback-email').value = '';
+                    addAlert('💬 Feedback submitted successfully. Thank you!', 'safe');
+                } else {
+                    errEl.textContent = `Error: ${json.error || 'Failed to send.'}`;
+                }
+            } catch (err) {
+                try {
+                    await fetch('/api/send-alert', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ subscriberEmail: email || 'feedback@app.com', camera: `Feedback [${category}]`, riskScore: 0, mode: 'flood', timestamp: new Date().toLocaleString() })
+                    });
+                    successEl.style.display = 'block';
+                    addAlert('💬 Feedback sent via system notification. Thank you!', 'safe');
+                } catch (e2) {
+                    errEl.textContent = 'Network error. Please check connection.';
+                }
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '📤 Send Feedback (送出回饋)';
+            }
+        }
+
         // ════════════════════════════════════════════════════════════════
         //  INIT
         // ════════════════════════════════════════════════════════════════
         loadNotifSettings();
+        initFeedbackModal();
         addAlert('FloodWatch AI initialized — select a camera to begin', 'info');
         addAlert('Pre-loaded: Neihu District cameras near Brown Line MRT', 'info');
     </script>
+
+    <!-- ── Feedback / Suggestion Modal (hidden by default) ── -->
+    <div class="modal-overlay" id="feedback-modal">
+        <div class="modal-card">
+            <button class="btn-close-modal" id="btn-close-feedback" aria-label="Close feedback">✕</button>
+            <div style="padding: 2rem;">
+                <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:1.5rem;">
+                    <div style="width:44px; height:44px; background:rgba(255,94,98,0.15); border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; color:#ff5e62;">
+                        ✉️
+                    </div>
+                    <div>
+                        <h2 style="font-size:1.3rem; margin:0; font-family:var(--display);">Send Feedback (意見回饋)</h2>
+                        <p style="font-size:0.8rem; color:var(--text-dim); margin:0;">We read every message! (我們重視每則回饋！)</p>
+                    </div>
+                </div>
+
+                <!-- Category -->
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); display:block; margin-bottom:0.4rem;">Category (類別) <span style="color:#ff5e62">*</span></label>
+                    <select id="feedback-category" style="width:100%; padding:0.85rem 1.2rem; font-size:0.9rem; color:#fff; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; outline:none; cursor:pointer;">
+                        <option value="feature" style="background:#0a1220; color:#fff;">💡 Feature Suggestion (功能建議)</option>
+                        <option value="cctv" style="background:#0a1220; color:#fff;">📹 Camera / Stream Issue (鏡頭問題)</option>
+                        <option value="bug" style="background:#0a1220; color:#fff;">🐛 Bug Report (問題回報)</option>
+                        <option value="other" style="background:#0a1220; color:#fff;">💬 Other (其他)</option>
+                    </select>
+                </div>
+
+                <!-- Name (optional) -->
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); display:block; margin-bottom:0.4rem;">Your Name (您的名稱) <span style="color:var(--text-dim); font-size:0.75rem;">optional</span></label>
+                    <input type="text" id="feedback-name" placeholder="e.g. Chichi" autocomplete="off" style="width:100%; padding:0.85rem 1.2rem; font-size:0.9rem; color:#fff; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; outline:none;">
+                </div>
+
+                <!-- Email (optional) -->
+                <div style="margin-bottom:1rem;">
+                    <label style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); display:block; margin-bottom:0.4rem;">Reply Email (回覆信箱) <span style="color:var(--text-dim); font-size:0.75rem;">optional</span></label>
+                    <input type="email" id="feedback-email" placeholder="e.g. you@email.com" autocomplete="off" style="width:100%; padding:0.85rem 1.2rem; font-size:0.9rem; color:#fff; background:rgba(255,255,255,0.05); border:1px solid var(--border); border-radius:10px; outline:none;">
+                </div>
+
+                <!-- Message -->
+                <div style="margin-bottom:1.5rem;">
+                    <label style="font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim); display:block; margin-bottom:0.4rem;">Message (內容) <span style="color:#ff5e62">*</span></label>
+                    <textarea id="feedback-message" rows="4"
+                        placeholder="Tell us what you think, what's broken, or suggestions for this app! &#10;告訴我們您的想法、遇到的問題或建議！"
+                        style="width:100%; padding:0.85rem 1rem; border-radius:12px; border:1px solid var(--border); background:rgba(255,255,255,0.04); color:#fff; font-size:0.9rem; resize:vertical; outline:none; min-height:100px; box-sizing:border-box;"
+                    ></textarea>
+                </div>
+
+                <!-- Error / Success messages -->
+                <p id="feedback-error" style="color:#ff5e62; font-size:0.82rem; margin:0 0 0.75rem; min-height:1.2em;"></p>
+                <p id="feedback-success" style="color:#00e5a0; font-size:0.88rem; margin:0 0 0.75rem; min-height:1.2em; display:none;">
+                    ✅ Sent! Thank you for your feedback. (已送出！感謝您的回饋。)
+                </p>
+
+                <!-- Submit -->
+                <button id="btn-feedback-submit" onclick="sendAppFeedback()"
+                    style="width:100%; padding:0.95rem; border-radius:12px; border:none; cursor:pointer; background:linear-gradient(135deg, #ff5e62, #e23e57); color:#fff; font-family:var(--display); font-size:0.9rem; font-weight:700; letter-spacing:1px; transition:opacity 0.2s, transform 0.15s; display:flex; align-items:center; justify-content:center; gap:0.5rem;">
+                    📤 Send Feedback (送出回饋)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Feedback Button -->
+    <button id="btn-open-feedback" aria-label="Send feedback"
+        style="position:fixed; bottom:2rem; right:1.5rem; z-index:999; width:52px; height:52px; border-radius:50%; border:none; cursor:pointer; background:linear-gradient(135deg, #ff5e62, #e23e57); color:#fff; font-size:1.3rem; box-shadow:0 6px 20px rgba(255,94,98,0.45); display:flex; align-items:center; justify-content:center; transition:transform 0.2s, box-shadow 0.2s;"
+        onmouseover="this.style.transform='scale(1.1)'; this.style.boxShadow='0 8px 28px rgba(255,94,98,0.6)'"
+        onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 6px 20px rgba(255,94,98,0.45)'">
+        💬
+    </button>
 
 </body>
 
