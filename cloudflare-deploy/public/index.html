@@ -3508,10 +3508,11 @@
 
             const payload = {
                 action: 'feedback',
+                app: 'FloodWatch AI',
                 category: category,
                 name: name || 'Anonymous',
                 email: email || 'No email',
-                message: `[Taipei Traffic / FloodWatch] ${message}`
+                message: message
             };
 
             try {
