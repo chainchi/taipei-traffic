@@ -1013,6 +1013,7 @@
         .mode-btn:hover {
             border-color: var(--accent);
             color: #fff;
+        }
         .mode-btn.active {
             border-color: var(--accent);
             color: var(--accent);
@@ -2579,7 +2580,12 @@
         //  INIT
         // ════════════════════════════════════════════════════════════════
         loadNotifSettings();
-        initFeedbackModal();
+        // Defer feedback modal init until DOM is fully parsed (modal HTML is below this script)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFeedbackModal);
+        } else {
+            requestAnimationFrame(initFeedbackModal);
+        }
         addAlert('FloodWatch AI initialized — select a camera to begin', 'info');
         addAlert('Pre-loaded: Neihu District cameras near Brown Line MRT', 'info');
     </script>

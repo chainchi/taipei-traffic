@@ -1238,6 +1238,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+        }
         /* ── Feedback Modal & Overlay (strictly hidden by default) ── */
         .modal-overlay {
             position: fixed;
@@ -3551,7 +3552,12 @@
         //  INIT
         // ════════════════════════════════════════════════════════════════
         loadSubscriptionSettings();
-        initFeedbackModal();
+        // Defer feedback modal init until DOM is fully parsed (modal HTML is below this script)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initFeedbackModal);
+        } else {
+            requestAnimationFrame(initFeedbackModal);
+        }
         addAlert('FloodWatch AI initialized — select a camera to begin', 'info');
         addAlert('Pre-loaded: Neihu District cameras near Brown Line MRT', 'info');
     </script>
