@@ -1628,6 +1628,70 @@
         const noSigCanvas = document.getElementById('no-signal-canvas');
         const noSigCtx    = noSigCanvas.getContext('2d');
 
+        // ── VideoLinks (LiveKit) stream state ──
+        const VIDEOLINKS_API_BASE = 'https://videolinks-api.cadtc-larry.workers.dev';
+        let currentVideoLinksRoom = null;
+
+        async function disconnectVideoLinksRoom() {
+            if (currentVideoLinksRoom) {
+                try { await currentVideoLinksRoom.disconnect(); } catch (e) { /* ignore */ }
+                currentVideoLinksRoom = null;
+            }
+        }
+
+        function parseVideoLinksStreamId(val) {
+            try {
+                const u = new URL(val);
+                const streamId = u.searchParams.get('stream');
+                if (streamId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(streamId) && u.pathname.toLowerCase().includes('watch')) {
+                    return streamId;
+                }
+            } catch (e) { /* not a valid URL */ }
+            return null;
+        }
+
+        async function loadVideoLinksStream(streamId) {
+            await disconnectVideoLinksRoom();
+            addAlert('🔗 Connecting to VideoLinks stream…', 'info');
+
+            try {
+                const statusRes = await fetch(`${VIDEOLINKS_API_BASE}/api/streams/${streamId}`);
+                if (statusRes.status === 404) throw new Error('Stream not found');
+                const statusData = await statusRes.json();
+                if (statusData.status === 'ended') throw new Error('Stream has ended');
+
+                const { Room, RoomEvent, Track } = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/+esm');
+
+                const tokenRes = await fetch(`${VIDEOLINKS_API_BASE}/api/streams/${streamId}/viewer-token`, { method: 'POST' });
+                if (!tokenRes.ok) {
+                    const errData = await tokenRes.json().catch(() => ({}));
+                    throw new Error(errData.error === 'stream_ended' ? 'Stream has ended' : 'Could not get viewer token');
+                }
+                const { viewerToken, livekitUrl } = await tokenRes.json();
+
+                const room = new Room();
+                room.on(RoomEvent.TrackSubscribed, (track) => {
+                    if (track.kind === Track.Kind.Video) {
+                        track.attach(video);
+                        addAlert('✅ VideoLinks stream live — video attached', 'safe');
+                        startAnalysis();
+                    }
+                });
+                room.on(RoomEvent.Disconnected, () => {
+                    addAlert('⚠️ VideoLinks stream disconnected', 'warn');
+                });
+
+                await room.connect(livekitUrl, viewerToken);
+                currentVideoLinksRoom = room;
+
+                if (statusData.status !== 'live') {
+                    addAlert('⏳ Waiting for broadcaster to go live…', 'info');
+                }
+            } catch (err) {
+                addAlert(`❌ VideoLinks connection failed: ${err.message}`, 'danger');
+            }
+        }
+
         // ── No-Signal Animation ──
         let noSigAnimId = null;
         let noSigVisible = true;
@@ -1966,6 +2030,7 @@
             }
             webcamActive = false;
             document.getElementById('flip-cam-btn').style.display = 'none';
+            disconnectVideoLinksRoom();
 
             document.getElementById('source-overlay').classList.add('hidden');
 
@@ -2126,6 +2191,17 @@
                 loadCamera(val, `Camera ${val}`, 'Custom', '');
                 return;
             }
+
+            const videoLinksStreamId = parseVideoLinksStreamId(val);
+            if (videoLinksStreamId) {
+                document.getElementById('cam-name').textContent = 'VideoLinks Stream';
+                document.getElementById('cam-location').textContent = videoLinksStreamId;
+                document.getElementById('source-overlay').classList.add('hidden');
+                loadVideoLinksStream(videoLinksStreamId);
+                return;
+            }
+
+            disconnectVideoLinksRoom();
 
             document.getElementById('cam-name').textContent = 'Custom Source';
             document.getElementById('cam-location').textContent = val.substring(0, 50);
@@ -3214,6 +3290,24 @@
             const labelMode = detectionMode === 'flood' ? 'flood' : 'parking watch';
             addAlert(`🚀 Requesting ${labelMode} alert email notification…`, 'info');
 
+            let snapshotBase64 = null;
+            try {
+                if (video.videoWidth) {
+                    const maxW = 800;
+                    const scale = Math.min(1, maxW / video.videoWidth);
+                    const snapCanvas = document.createElement('canvas');
+                    snapCanvas.width = Math.round(video.videoWidth * scale);
+                    snapCanvas.height = Math.round(video.videoHeight * scale);
+                    const sctx = snapCanvas.getContext('2d');
+                    sctx.drawImage(video, 0, 0, snapCanvas.width, snapCanvas.height);
+                    sctx.drawImage(overlay, 0, 0, snapCanvas.width, snapCanvas.height);
+                    const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.75);
+                    snapshotBase64 = dataUrl.split(',')[1];
+                }
+            } catch (e) {
+                console.warn('Snapshot capture failed:', e);
+            }
+
             try {
                 const resp = await fetch('/api/send-alert', {
                     method: 'POST',
@@ -3223,7 +3317,8 @@
                         riskScore: riskScore,
                         camera: camName,
                         mode: detectionMode,
-                        timestamp: new Date().toLocaleString('zh-TW')
+                        timestamp: new Date().toLocaleString('zh-TW'),
+                        snapshotBase64: snapshotBase64
                     })
                 });
 

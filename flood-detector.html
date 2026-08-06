@@ -2455,9 +2455,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         type: 'email',
-                        target: notifTarget,
+                        subscriberEmail: notifTarget,
                         riskScore: riskScore,
                         camera: camName,
+                        mode: detectionMode,
                         timestamp: new Date().toLocaleString('zh-TW')
                     })
                 });
