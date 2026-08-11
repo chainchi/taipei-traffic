@@ -1443,17 +1443,6 @@
         <!-- ── Sidebar ── -->
         <div class="sidebar">
 
-            <!-- Custom Source (Collapsible) -->
-            <div class="sidebar-section collapsible-section">
-                <div class="section-heading">Custom Source</div>
-                <div class="custom-input-row" style="margin-top: 6px;">
-                    <input class="custom-input" id="url-input" type="text"
-                           placeholder="Video URL (.mp4 / .m3u8) or camera ID…" style="flex: 1;">
-                    <button class="btn" onclick="loadCustomURL()">LOAD</button>
-                </div>
-                <button class="btn btn-webcam" onclick="loadWebcam()" style="width: 100%; margin-top: 8px;">📷 Use Local Webcam</button>
-            </div>
-
             <!-- Unified Control Panel (Gauge + Sensitivity + Email Alerts + Advanced Toggle) -->
             <div class="sidebar-section">
                 <div class="section-heading" style="margin-bottom: 12px;">System Control</div>
@@ -1581,6 +1570,17 @@
                     </div>
                     <div class="baseline-status" id="baseline-status">No baseline captured — auto-learning active</div>
                 </div>
+            </div>
+
+            <!-- Custom Source (Collapsible) -->
+            <div class="sidebar-section collapsible-section">
+                <div class="section-heading">Custom Source</div>
+                <div class="custom-input-row" style="margin-top: 6px;">
+                    <input class="custom-input" id="url-input" type="text"
+                           placeholder="Video URL (.mp4 / .m3u8) or camera ID…" style="flex: 1;">
+                    <button class="btn" onclick="loadCustomURL()">LOAD</button>
+                </div>
+                <button class="btn btn-webcam" onclick="loadWebcam()" style="width: 100%; margin-top: 8px;">📷 Use Local Webcam</button>
             </div>
 
             <!-- Alert Log -->
