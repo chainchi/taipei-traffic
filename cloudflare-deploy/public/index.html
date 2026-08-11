@@ -1349,6 +1349,7 @@
                 <div class="mode-selector">
                     <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')">🌊 Flood Detection</button>
                     <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')">🚗 Parking Watch</button>
+                    <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')">🔍 Object Detection</button>
                 </div>
             </div>
 
@@ -1628,14 +1629,23 @@
         const noSigCanvas = document.getElementById('no-signal-canvas');
         const noSigCtx    = noSigCanvas.getContext('2d');
 
-        // ── VideoLinks (LiveKit) stream state ──
+        // ── VideoLinks (Cloudflare Realtime / partytracks) stream state ──
         const VIDEOLINKS_API_BASE = 'https://videolinks-api.cadtc-larry.workers.dev';
-        let currentVideoLinksRoom = null;
+        const VIDEOLINKS_REALTIME_PREFIX = `${VIDEOLINKS_API_BASE}/api/realtime`;
+        let videoLinksSession = null; // { viewerId, streamId, subscriptions, heartbeatTimer, stopped }
 
         async function disconnectVideoLinksRoom() {
-            if (currentVideoLinksRoom) {
-                try { await currentVideoLinksRoom.disconnect(); } catch (e) { /* ignore */ }
-                currentVideoLinksRoom = null;
+            if (videoLinksSession) {
+                const s = videoLinksSession;
+                videoLinksSession = null;
+                s.stopped.value = true;
+                if (s.heartbeatTimer) clearInterval(s.heartbeatTimer);
+                s.subscriptions.forEach(sub => { try { sub.unsubscribe(); } catch (e) { /* ignore */ } });
+                try {
+                    const beaconUrl = `${VIDEOLINKS_API_BASE}/api/streams/${s.streamId}/viewer-leave`;
+                    const body = new Blob([JSON.stringify({ viewerId: s.viewerId })], { type: 'application/json' });
+                    navigator.sendBeacon?.(beaconUrl, body);
+                } catch (e) { /* ignore */ }
             }
         }
 
@@ -1654,39 +1664,81 @@
             await disconnectVideoLinksRoom();
             addAlert('🔗 Connecting to VideoLinks stream…', 'info');
 
+            const stopped = { value: false };
+
             try {
                 const statusRes = await fetch(`${VIDEOLINKS_API_BASE}/api/streams/${streamId}`);
                 if (statusRes.status === 404) throw new Error('Stream not found');
-                const statusData = await statusRes.json();
+                let statusData = await statusRes.json();
                 if (statusData.status === 'ended') throw new Error('Stream has ended');
 
-                const { Room, RoomEvent, Track } = await import('https://cdn.jsdelivr.net/npm/livekit-client@2/+esm');
+                if (statusData.status !== 'live') {
+                    addAlert('⏳ Waiting for broadcaster to go live…', 'info');
+                    while (!stopped.value) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        const pollRes = await fetch(`${VIDEOLINKS_API_BASE}/api/streams/${streamId}`);
+                        if (pollRes.status === 404) throw new Error('Stream not found');
+                        statusData = await pollRes.json();
+                        if (statusData.status === 'ended') throw new Error('Stream has ended');
+                        if (statusData.status === 'live') break;
+                    }
+                }
+                if (stopped.value) return;
+
+                const [{ PartyTracks }, { of }] = await Promise.all([
+                    import('https://esm.sh/partytracks@0.0.56/client'),
+                    import('https://esm.sh/rxjs@7.8.2')
+                ]);
 
                 const tokenRes = await fetch(`${VIDEOLINKS_API_BASE}/api/streams/${streamId}/viewer-token`, { method: 'POST' });
                 if (!tokenRes.ok) {
                     const errData = await tokenRes.json().catch(() => ({}));
-                    throw new Error(errData.error === 'stream_ended' ? 'Stream has ended' : 'Could not get viewer token');
+                    const msg = errData.error === 'stream_ended' ? 'Stream has ended'
+                        : errData.error === 'not_live_yet' ? 'Broadcaster is not live yet'
+                        : 'Could not get viewer token';
+                    throw new Error(msg);
                 }
-                const { viewerToken, livekitUrl } = await tokenRes.json();
+                const { viewerId, sessionId, videoTrackName, audioTrackName } = await tokenRes.json();
 
-                const room = new Room();
-                room.on(RoomEvent.TrackSubscribed, (track) => {
-                    if (track.kind === Track.Kind.Video) {
-                        track.attach(video);
-                        addAlert('✅ VideoLinks stream live — video attached', 'safe');
-                        startAnalysis();
-                    }
-                });
-                room.on(RoomEvent.Disconnected, () => {
-                    addAlert('⚠️ VideoLinks stream disconnected', 'warn');
-                });
+                const partyTracks = new PartyTracks({ prefix: VIDEOLINKS_REALTIME_PREFIX });
+                const pulledVideo$ = partyTracks.pull(of({ location: 'remote', sessionId, trackName: videoTrackName }));
+                const pulledAudio$ = partyTracks.pull(of({ location: 'remote', sessionId, trackName: audioTrackName }));
 
-                await room.connect(livekitUrl, viewerToken);
-                currentVideoLinksRoom = room;
+                const outputStream = new MediaStream();
+                video.srcObject = outputStream;
+                let currentVideoTrack = null;
+                let currentAudioTrack = null;
 
-                if (statusData.status !== 'live') {
-                    addAlert('⏳ Waiting for broadcaster to go live…', 'info');
-                }
+                const subscriptions = [];
+                subscriptions.push(pulledVideo$.subscribe((track) => {
+                    if (currentVideoTrack) outputStream.removeTrack(currentVideoTrack);
+                    outputStream.addTrack(track);
+                    currentVideoTrack = track;
+                    addAlert('✅ VideoLinks stream live — video attached', 'safe');
+                    startAnalysis();
+                }));
+                subscriptions.push(pulledAudio$.subscribe((track) => {
+                    if (currentAudioTrack) outputStream.removeTrack(currentAudioTrack);
+                    outputStream.addTrack(track);
+                    currentAudioTrack = track;
+                }));
+
+                let heartbeatTimer = setInterval(async () => {
+                    try {
+                        const res = await fetch(`${VIDEOLINKS_API_BASE}/api/streams/${streamId}/viewer-heartbeat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ viewerId })
+                        });
+                        const hb = await res.json();
+                        if (hb.status === 'ended') {
+                            addAlert('⚠️ VideoLinks stream ended', 'warn');
+                            disconnectVideoLinksRoom();
+                        }
+                    } catch (e) { /* ignore transient heartbeat failures */ }
+                }, 3000);
+
+                videoLinksSession = { viewerId, streamId, subscriptions, heartbeatTimer, stopped };
             } catch (err) {
                 addAlert(`❌ VideoLinks connection failed: ${err.message}`, 'danger');
             }
@@ -1848,7 +1900,7 @@
         let lastFpsTime = Date.now();
 
         // Monitoring Mode
-        let detectionMode = 'flood'; // 'flood' | 'parking'
+        let detectionMode = 'flood'; // 'flood' | 'parking' | 'object'
 
         // Zone (normalized 0-1)
         let zoneEnabled = true;
@@ -1883,6 +1935,12 @@
         let parkingFrameCount = 0;
         let lastDetectedVehicles = [];
 
+        // Standalone Object Detection mode
+        let objectFrameCount = 0;
+        let lastDetectedObjects = [];
+        let lastObjectZoneCount = 0;
+        let lastObjectClassSet = '';
+
         // Recording state
         let isRecording = false;
         let mediaRecorder = null;
@@ -1913,18 +1971,27 @@
 
             const floodBtn = document.getElementById('mode-flood-btn');
             const parkingBtn = document.getElementById('mode-parking-btn');
+            const objectBtn = document.getElementById('mode-object-btn');
 
             // Toggle active styles
+            floodBtn.classList.toggle('active', mode === 'flood');
+            parkingBtn.classList.toggle('active', mode === 'parking');
+            objectBtn.classList.toggle('active', mode === 'object');
+
             if (mode === 'flood') {
-                floodBtn.classList.add('active');
-                parkingBtn.classList.remove('active');
                 addAlert('🔄 Switched to Flood Detection Mode', 'info');
-            } else {
-                parkingBtn.classList.add('active');
-                floodBtn.classList.remove('active');
+            } else if (mode === 'parking') {
                 addAlert('🔄 Switched to Parking Watch Mode — initializing AI...', 'info');
                 loadCocoModel(); // Load TensorFlow model
                 scheduleAutoBaseline();
+            } else {
+                addAlert('🔄 Switched to Object Detection Mode — initializing AI... Draw a zone to choose the detection area.', 'info');
+                loadCocoModel();
+                lastDetectedObjects = [];
+                lastObjectZoneCount = 0;
+                lastObjectClassSet = '';
+                objectFrameCount = 0;
+                updateColors(0, 0, 0, 0);
             }
 
             // Update Sidebar UI Titles and Labels based on Mode
@@ -1944,7 +2011,7 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Turbidity';
                 document.getElementById('risk-label').textContent = 'SAFE';
                 document.getElementById('risk-label').className = 'risk-label safe';
-            } else {
+            } else if (mode === 'parking') {
                 if (gaugeTitle) gaugeTitle.textContent = 'Parking Occupation';
                 if (gaugeUnit) gaugeUnit.textContent = 'PRESENCE';
                 if (mWaterLabel) mWaterLabel.textContent = 'Object Contrast';
@@ -1953,14 +2020,27 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Occupation';
                 document.getElementById('risk-label').textContent = 'VACANT';
                 document.getElementById('risk-label').className = 'risk-label safe';
+            } else {
+                if (gaugeTitle) gaugeTitle.textContent = 'Objects Detected';
+                if (gaugeUnit) gaugeUnit.textContent = 'COUNT';
+                if (mWaterLabel) mWaterLabel.textContent = 'Top Class';
+                if (mReflectLabel) mReflectLabel.textContent = 'Confidence';
+                if (mChangeLabel) mChangeLabel.textContent = 'Classes Seen';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
+                document.getElementById('risk-label').textContent = 'NONE';
+                document.getElementById('risk-label').className = 'risk-label safe';
             }
 
             // Reset scores
             smoothedRisk = 0;
             stationaryFrames = 0;
             baselineData = null; // Clear stale baseline when switching modes
-            updateGauge(0);
-            updateMetrics(0, 0, 0, 0);
+            if (mode === 'object') {
+                updateObjectMetrics([]);
+            } else {
+                updateGauge(0);
+                updateMetrics(0, 0, 0, 0);
+            }
         }
 
         let autoBaselineTimer = null;
@@ -2499,6 +2579,13 @@
 
             syncCanvasSize();
 
+            if (detectionMode === 'object') {
+                runObjectDetectionFrame();
+                drawOverlay(null, Math.min(100, lastObjectZoneCount * 25));
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
             // Draw frame to work canvas
             wctx.drawImage(video, 0, 0, workCanvas.width, workCanvas.height);
 
@@ -2823,6 +2910,86 @@
         }
 
         // ════════════════════════════════════════════════════════════════
+        //  STANDALONE OBJECT DETECTION ENGINE
+        // ════════════════════════════════════════════════════════════════
+        function updateObjectMetrics(objects) {
+            const sorted = [...objects].sort((a, b) => b.score - a.score);
+            const top = sorted[0];
+            const distinctClasses = new Set(objects.map(o => o.class));
+
+            document.getElementById('m-water-pct').textContent = top ? top.class : '—';
+            document.getElementById('m-reflect').textContent = top ? Math.round(top.score * 100) + '%' : '0%';
+            document.getElementById('m-change').textContent = distinctClasses.size;
+            document.getElementById('m-turbidity').textContent = objectFrameCount;
+
+            document.getElementById('bar-water').style.width = (top ? Math.round(top.score * 100) : 0) + '%';
+            document.getElementById('bar-reflect').style.width = (top ? Math.round(top.score * 100) : 0) + '%';
+            document.getElementById('bar-change').style.width = Math.min(100, distinctClasses.size * 20) + '%';
+            document.getElementById('bar-turbid').style.width = Math.min(100, objects.length * 20) + '%';
+
+            const waterColor = 'var(--accent)';
+            document.getElementById('bar-water').style.background = waterColor;
+            document.getElementById('m-water-pct').style.color = waterColor;
+
+            const count = objects.length;
+            const labelEl = document.getElementById('risk-label');
+            labelEl.textContent = count === 0 ? 'NONE' : `${count} FOUND`;
+            labelEl.className = 'risk-label ' + (count === 0 ? 'safe' : 'low');
+
+            const valueEl = document.getElementById('risk-value');
+            valueEl.textContent = count;
+            valueEl.style.color = 'var(--accent)';
+            valueEl.style.textShadow = '0 0 20px var(--accent)';
+
+            const fill = document.getElementById('gauge-fill');
+            const circumference = 2 * Math.PI * 65;
+            const pct = Math.min(100, count * 20);
+            fill.style.strokeDashoffset = circumference - (pct / 100) * circumference;
+            fill.style.stroke = 'var(--accent)';
+            fill.style.filter = 'drop-shadow(0 0 8px var(--accent))';
+        }
+
+        async function runObjectDetectionFrame() {
+            if (!cocoModel) return;
+
+            objectFrameCount++;
+            if (objectFrameCount % 5 !== 0) return;
+
+            try {
+                const predictions = await cocoModel.detect(video);
+                lastDetectedObjects = predictions.filter(p => p.score > 0.5);
+
+                const vWidth = video.videoWidth, vHeight = video.videoHeight;
+                const inZone = lastDetectedObjects.filter(p => {
+                    const [bx, by, bw, bh] = p.bbox;
+                    const cx = (bx + bw / 2) / vWidth;
+                    const cyFoot = (by + bh) / vHeight;
+                    const cyMid = (by + bh / 2) / vHeight;
+                    return pointInPolygon(cx, cyFoot, zonePoints) || pointInPolygon(cx, cyMid, zonePoints);
+                });
+                lastObjectZoneCount = inZone.length;
+
+                const classSet = [...new Set(inZone.map(o => o.class))].sort().join(',');
+                if (classSet !== lastObjectClassSet) {
+                    lastObjectClassSet = classSet;
+                    if (inZone.length === 0) {
+                        addAlert('🔍 Zone scan: no recognizable objects in the zone', 'info');
+                    } else {
+                        const summary = inZone
+                            .sort((a, b) => b.score - a.score)
+                            .map(o => `${o.class} (${Math.round(o.score * 100)}%)`)
+                            .join(', ');
+                        addAlert(`🔍 In zone: ${summary}`, 'safe');
+                    }
+                }
+
+                updateObjectMetrics(inZone);
+            } catch (e) {
+                console.error('Object detection error:', e);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
         //  OVERLAY DRAWING
         // ════════════════════════════════════════════════════════════════
         function drawOverlay(zone, risk) {
@@ -2899,7 +3066,9 @@
             if (zoneClosed && pts.length) {
                 const labelText = detectionMode === 'flood'
                     ? `FLOOD MONITOR · RISK: ${Math.round(risk)}%`
-                    : `PARKING WATCH · SCORE: ${Math.round(risk)}%`;
+                    : detectionMode === 'parking'
+                    ? `PARKING WATCH · SCORE: ${Math.round(risk)}%`
+                    : `OBJECT DETECTION · ${lastObjectZoneCount} IN ZONE`;
                 const lx = pts[0].x, ly = pts[0].y;
                 octx.font = 'bold 11px Orbitron, monospace';
                 const tw = octx.measureText(labelText).width;
@@ -2942,6 +3111,34 @@
                     octx.fillStyle = isActive ? 'rgba(255, 51, 85, 0.85)' : 'rgba(0, 229, 160, 0.7)';
                     octx.font = "bold 10px Orbitron, monospace";
                     const tag = `${veh.class.toUpperCase()} ${Math.round(veh.score * 100)}%`;
+                    const tagW = octx.measureText(tag).width;
+                    octx.fillRect(cx, cy - 18, tagW + 10, 18);
+
+                    octx.fillStyle = '#ffffff';
+                    octx.fillText(tag, cx + 5, cy - 5);
+                });
+            } else if (detectionMode === 'object' && cocoModel && lastDetectedObjects.length > 0) {
+                lastDetectedObjects.forEach(obj => {
+                    const [bx, by, bw, bh] = obj.bbox;
+                    const scaleX = cw / video.videoWidth;
+                    const scaleY = ch / video.videoHeight;
+                    const cx = bx * scaleX;
+                    const cy = by * scaleY;
+                    const cwid = bw * scaleX;
+                    const chei = bh * scaleY;
+
+                    const cp1 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh) / video.videoHeight };
+                    const cp2 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh / 2) / video.videoHeight };
+                    const isActive = pointInPolygon(cp1.x, cp1.y, zonePoints) ||
+                                     pointInPolygon(cp2.x, cp2.y, zonePoints);
+
+                    octx.strokeStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
+                    octx.lineWidth = 2.5;
+                    octx.strokeRect(cx, cy, cwid, chei);
+
+                    octx.fillStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
+                    octx.font = "bold 10px Orbitron, monospace";
+                    const tag = `${obj.class.toUpperCase()} ${Math.round(obj.score * 100)}%`;
                     const tagW = octx.measureText(tag).width;
                     octx.fillRect(cx, cy - 18, tagW + 10, 18);
 
