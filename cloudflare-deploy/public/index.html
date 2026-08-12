@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FloodWatch AI — Neihu District Flood Detection</title>
-    <meta name="description" content="Real-time flood detection using CCTV camera video analysis for Neihu District, Taipei">
+    <title>VisionWatch AI — Live Flood, Parking &amp; Object Detection</title>
+    <meta name="description" content="Real-time flood detection, parking watch, and AI object detection over live camera video streams">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;700;900&display=swap"
         rel="stylesheet">
@@ -1314,17 +1314,11 @@
     <div class="topbar">
         <div class="topbar-brand">
             <div class="topbar-icon">🌊</div>
-            <div class="topbar-title">FLOOD<span>WATCH</span></div>
+            <div class="topbar-title">VISION<span>WATCH</span></div>
         </div>
         <div class="topbar-divider"></div>
         <div class="topbar-subtitle">Neihu District · Brown Line MRT</div>
         <div class="topbar-right" style="gap: 12px;">
-            <button class="btn" id="toggle-grid-btn" onclick="toggleGridView()" style="padding: 6px 12px; font-size: 0.7rem; border-color: var(--accent); background: transparent; color: var(--accent);">
-                🖥️ Multi-Cam Grid
-            </button>
-            <button class="btn" id="toggle-panel-btn" onclick="toggleSidebarPanel()" style="padding: 6px 12px; font-size: 0.7rem; border-color: var(--accent); background: transparent; color: var(--accent);">
-                🎛️ Video Only Mode
-            </button>
             <div class="made-with-banner">
                 Made with <span class="heart">❤️</span> by
                 <a href="https://chichijpshop.blogspot.com/2026/07/aifloodwatch_01790381153.html" target="_blank" rel="noopener">chichi的分享天空</a>
@@ -1344,12 +1338,13 @@
                     <div class="live-dot"></div>
                     LIVE
                 </div>
-                <div class="cam-name" id="cam-name">Select Camera</div>
+                <div class="cam-name" id="cam-name">No Source Loaded</div>
                 <div class="cam-location" id="cam-location"></div>
                 <div class="mode-selector">
                     <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')">🌊 Flood Detection</button>
                     <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')">🚗 Parking Watch</button>
                     <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')">🔍 Object Detection</button>
+                    <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')">👤 People Detection</button>
                 </div>
             </div>
 
@@ -1372,72 +1367,8 @@
                 </button>
             </div>
 
-            <!-- Camera selector -->
-            <div class="source-overlay" id="source-overlay">
-                <div class="source-panel">
-                    <div class="source-panel-title">SELECT MONITORING CAMERA</div>
-                    <div class="source-panel-subtitle">
-                        Pre-configured CCTV cameras near Brown Line MRT stations in Neihu District (內湖區)
-                    </div>
-
-                    <div class="cam-grid">
-                        <div class="cam-card" onclick="loadCamera('145', '內湖港墘路口', '港墘站 Gangqian', '184m from station')">
-                            <div class="cam-card-emoji">🚇</div>
-                            <div class="cam-card-name">內湖港墘路口</div>
-                            <div class="cam-card-station">🟤 港墘站 Gangqian</div>
-                            <div class="cam-card-dist">📍 184m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('146', '成功路三段', '文德站 Wende', '~350m from station')">
-                            <div class="cam-card-emoji">🚇</div>
-                            <div class="cam-card-name">成功路三段</div>
-                            <div class="cam-card-station">🟤 文德站 Wende</div>
-                            <div class="cam-card-dist">📍 ~350m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('124', '康寧路三段', '東湖站 Donghu', '175m from station')">
-                            <div class="cam-card-emoji">🚇</div>
-                            <div class="cam-card-name">康寧路三段</div>
-                            <div class="cam-card-station">🟤 東湖站 Donghu</div>
-                            <div class="cam-card-dist">📍 175m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('117', '舊宗路二段', '港墘站 Gangqian', '~500m from station')">
-                            <div class="cam-card-emoji">📹</div>
-                            <div class="cam-card-name">舊宗路二段</div>
-                            <div class="cam-card-station">🟤 港墘站 Gangqian</div>
-                            <div class="cam-card-dist">📍 ~500m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('335', '康寧路三段', '東湖站 Donghu', '223m from station')">
-                            <div class="cam-card-emoji">📹</div>
-                            <div class="cam-card-name">康寧路三段 (Alt)</div>
-                            <div class="cam-card-station">🟤 東湖站 Donghu</div>
-                            <div class="cam-card-dist">📍 223m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('109', '基湖路', '西湖站 Xihu', '219m from station')">
-                            <div class="cam-card-emoji">🚇</div>
-                            <div class="cam-card-name">基湖路</div>
-                            <div class="cam-card-station">🟤 西湖站 Xihu</div>
-                            <div class="cam-card-dist">📍 219m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('119', '民權舊宗路口', '西湖站 Xihu', '~400m from station')">
-                            <div class="cam-card-emoji">📹</div>
-                            <div class="cam-card-name">民權舊宗路口</div>
-                            <div class="cam-card-station">🟤 西湖站 Xihu</div>
-                            <div class="cam-card-dist">📍 ~400m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('120', '民權堤頂路口', '西湖站 Xihu', '~350m from station')">
-                            <div class="cam-card-emoji">📹</div>
-                            <div class="cam-card-name">民權堤頂路口</div>
-                            <div class="cam-card-station">🟤 西湖站 Xihu</div>
-                            <div class="cam-card-dist">📍 ~350m</div>
-                        </div>
-                        <div class="cam-card" onclick="loadCamera('143', '堤頂大道 (遠)', '西湖站 Xihu', '530m from station')">
-                            <div class="cam-card-emoji">📹</div>
-                            <div class="cam-card-name">堤頂大道 (遠)</div>
-                            <div class="cam-card-station">🟤 西湖站 Xihu</div>
-                            <div class="cam-card-dist">📍 530m</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Camera quick-links removed — Custom Source (URL / 3-digit camera ID) is the only source entry point -->
+            <div class="source-overlay hidden" id="source-overlay"></div>
         </div>
 
         <!-- ── Sidebar ── -->
@@ -1472,6 +1403,17 @@
                     <div class="slider-label">Sensitivity</div>
                     <input type="range" class="slider" id="sensitivity" min="1" max="10" value="5">
                     <div class="slider-val" id="sens-val">5</div>
+                </div>
+
+                <!-- Custom Source -->
+                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;">
+                    <div class="slider-label" style="margin-bottom: 6px;">Custom Source</div>
+                    <div class="custom-input-row" style="margin: 0;">
+                        <input class="custom-input" id="url-input" type="text"
+                               placeholder="Video URL (.mp4 / .m3u8) or camera ID…" style="flex: 1;">
+                        <button class="btn" onclick="loadCustomURL()">LOAD</button>
+                    </div>
+                    <button class="btn btn-webcam" onclick="loadWebcam()" style="width: 100%; margin-top: 8px;">📷 Use Local Webcam</button>
                 </div>
 
                 <!-- Email Alerts Subscription Row -->
@@ -1572,43 +1514,17 @@
                 </div>
             </div>
 
-            <!-- Custom Source (Collapsible) -->
-            <div class="sidebar-section collapsible-section">
-                <div class="section-heading">Custom Source</div>
-                <div class="custom-input-row" style="margin-top: 6px;">
-                    <input class="custom-input" id="url-input" type="text"
-                           placeholder="Video URL (.mp4 / .m3u8) or camera ID…" style="flex: 1;">
-                    <button class="btn" onclick="loadCustomURL()">LOAD</button>
-                </div>
-                <button class="btn btn-webcam" onclick="loadWebcam()" style="width: 100%; margin-top: 8px;">📷 Use Local Webcam</button>
-            </div>
-
             <!-- Alert Log -->
             <div class="sidebar-section" style="flex:1; display:flex; flex-direction:column; min-height:0;">
                 <div class="section-heading">Alert Log</div>
                 <div class="alert-log" id="alert-log">
                     <div class="alert-line">
                         <span class="alert-ts">--:--:--</span>
-                        <span class="alert-msg info">System initialized — select camera to begin monitoring</span>
+                        <span class="alert-msg info">System initialized — enter a source below to begin monitoring</span>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <!-- ── Multi-Camera Grid Overlay ── -->
-    <div class="grid-view-overlay hidden" id="grid-view-overlay">
-        <div id="grid-container" style="
-            display: grid;
-            grid-template-rows: repeat(2, 1fr);
-            grid-auto-flow: column;
-            grid-auto-columns: 1fr;
-            gap: 12px;
-            width: 100%;
-            max-width: 1600px;
-            height: calc(100vh - 80px);
-            margin: 0 auto;
-        "></div>
     </div>
 
 
@@ -1658,6 +1574,32 @@
                 }
             } catch (e) { /* not a valid URL */ }
             return null;
+        }
+
+        // tw.live is a public Taiwan traffic-camera aggregator — its pages embed a
+        // direct .m3u8 URL but the page itself isn't playable media, so we resolve
+        // it server-side (see functions/api/twlive-resolve.js) rather than fail silently.
+        function parseTwLiveCamId(val) {
+            try {
+                const u = new URL(val);
+                if (!/(^|\.)tw\.live$/.test(u.hostname)) return null;
+                const id = u.searchParams.get('id');
+                if (id && /^[A-Za-z0-9_-]{2,20}$/.test(id)) return id;
+            } catch (e) { /* not a valid URL */ }
+            return null;
+        }
+
+        async function loadTwLiveCamera(camId) {
+            addAlert(`🔗 Resolving tw.live camera ${camId}…`, 'info');
+            try {
+                const res = await fetch(`/api/twlive-resolve?id=${encodeURIComponent(camId)}`);
+                const data = await res.json();
+                if (!data.ok) throw new Error(data.error || 'Could not resolve stream');
+                playHLS(data.streamUrl);
+                addAlert(`✅ tw.live camera ${camId} connected — starting analysis`, 'safe');
+            } catch (err) {
+                addAlert(`❌ tw.live resolve failed: ${err.message}`, 'danger');
+            }
         }
 
         async function loadVideoLinksStream(streamId) {
@@ -1873,7 +1815,7 @@
                 ctx.font = `${Math.max(8, w * 0.010)}px 'Orbitron', monospace`;
                 ctx.fillStyle = 'rgba(0,180,255,0.4)';
                 ctx.shadowBlur = 0;
-                ctx.fillText('SELECT A CAMERA TO BEGIN', cx, cy + radarR + 48);
+                ctx.fillText('ENTER A SOURCE TO BEGIN', cx, cy + radarR + 48);
                 ctx.restore();
             }
             noSigAnimId = requestAnimationFrame(frame);
@@ -1941,6 +1883,13 @@
         let lastObjectZoneCount = 0;
         let lastObjectClassSet = '';
 
+        // People Detection mode (zone-gated person detection + email alerts)
+        let peopleFrameCount = 0;
+        let lastDetectedPeople = [];
+        let lastPeopleZoneCount = 0;
+        let lastPeopleAlertState = false;
+        let peopleEmailsSentCount = 0;
+
         // Recording state
         let isRecording = false;
         let mediaRecorder = null;
@@ -1972,11 +1921,13 @@
             const floodBtn = document.getElementById('mode-flood-btn');
             const parkingBtn = document.getElementById('mode-parking-btn');
             const objectBtn = document.getElementById('mode-object-btn');
+            const peopleBtn = document.getElementById('mode-people-btn');
 
             // Toggle active styles
             floodBtn.classList.toggle('active', mode === 'flood');
             parkingBtn.classList.toggle('active', mode === 'parking');
             objectBtn.classList.toggle('active', mode === 'object');
+            peopleBtn.classList.toggle('active', mode === 'people');
 
             if (mode === 'flood') {
                 addAlert('🔄 Switched to Flood Detection Mode', 'info');
@@ -1984,13 +1935,22 @@
                 addAlert('🔄 Switched to Parking Watch Mode — initializing AI...', 'info');
                 loadCocoModel(); // Load TensorFlow model
                 scheduleAutoBaseline();
-            } else {
+            } else if (mode === 'object') {
                 addAlert('🔄 Switched to Object Detection Mode — initializing AI... Draw a zone to choose the detection area.', 'info');
                 loadCocoModel();
                 lastDetectedObjects = [];
                 lastObjectZoneCount = 0;
                 lastObjectClassSet = '';
                 objectFrameCount = 0;
+                updateColors(0, 0, 0, 0);
+            } else {
+                addAlert('🔄 Switched to People Detection Mode — initializing AI... Draw a zone to choose the detection area. Email alerts fire when someone enters it.', 'info');
+                loadCocoModel();
+                lastDetectedPeople = [];
+                lastPeopleZoneCount = 0;
+                lastPeopleAlertState = false;
+                peopleFrameCount = 0;
+                peopleEmailsSentCount = 0;
                 updateColors(0, 0, 0, 0);
             }
 
@@ -2020,7 +1980,7 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Occupation';
                 document.getElementById('risk-label').textContent = 'VACANT';
                 document.getElementById('risk-label').className = 'risk-label safe';
-            } else {
+            } else if (mode === 'object') {
                 if (gaugeTitle) gaugeTitle.textContent = 'Objects Detected';
                 if (gaugeUnit) gaugeUnit.textContent = 'COUNT';
                 if (mWaterLabel) mWaterLabel.textContent = 'Top Class';
@@ -2029,6 +1989,15 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
                 document.getElementById('risk-label').textContent = 'NONE';
                 document.getElementById('risk-label').className = 'risk-label safe';
+            } else {
+                if (gaugeTitle) gaugeTitle.textContent = 'People Detected';
+                if (gaugeUnit) gaugeUnit.textContent = 'COUNT';
+                if (mWaterLabel) mWaterLabel.textContent = 'Detected';
+                if (mReflectLabel) mReflectLabel.textContent = 'Confidence';
+                if (mChangeLabel) mChangeLabel.textContent = 'Emails Sent';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
+                document.getElementById('risk-label').textContent = 'CLEAR';
+                document.getElementById('risk-label').className = 'risk-label safe';
             }
 
             // Reset scores
@@ -2036,7 +2005,9 @@
             stationaryFrames = 0;
             baselineData = null; // Clear stale baseline when switching modes
             if (mode === 'object') {
-                updateObjectMetrics([]);
+                updateObjectMetrics([], objectFrameCount);
+            } else if (mode === 'people') {
+                updatePeopleMetrics([], peopleFrameCount);
             } else {
                 updateGauge(0);
                 updateMetrics(0, 0, 0, 0);
@@ -2278,6 +2249,16 @@
                 document.getElementById('cam-location').textContent = videoLinksStreamId;
                 document.getElementById('source-overlay').classList.add('hidden');
                 loadVideoLinksStream(videoLinksStreamId);
+                return;
+            }
+
+            const twLiveCamId = parseTwLiveCamId(val);
+            if (twLiveCamId) {
+                disconnectVideoLinksRoom();
+                document.getElementById('cam-name').textContent = `tw.live · ${twLiveCamId}`;
+                document.getElementById('cam-location').textContent = val.substring(0, 50);
+                document.getElementById('source-overlay').classList.add('hidden');
+                loadTwLiveCamera(twLiveCamId);
                 return;
             }
 
@@ -2582,6 +2563,13 @@
             if (detectionMode === 'object') {
                 runObjectDetectionFrame();
                 drawOverlay(null, Math.min(100, lastObjectZoneCount * 25));
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
+            if (detectionMode === 'people') {
+                runPeopleDetectionFrame();
+                drawOverlay(null, Math.min(100, lastPeopleZoneCount * 25));
                 animId = requestAnimationFrame(analyzeLoop);
                 return;
             }
@@ -2912,7 +2900,7 @@
         // ════════════════════════════════════════════════════════════════
         //  STANDALONE OBJECT DETECTION ENGINE
         // ════════════════════════════════════════════════════════════════
-        function updateObjectMetrics(objects) {
+        function updateObjectMetrics(objects, frameCount) {
             const sorted = [...objects].sort((a, b) => b.score - a.score);
             const top = sorted[0];
             const distinctClasses = new Set(objects.map(o => o.class));
@@ -2920,7 +2908,7 @@
             document.getElementById('m-water-pct').textContent = top ? top.class : '—';
             document.getElementById('m-reflect').textContent = top ? Math.round(top.score * 100) + '%' : '0%';
             document.getElementById('m-change').textContent = distinctClasses.size;
-            document.getElementById('m-turbidity').textContent = objectFrameCount;
+            document.getElementById('m-turbidity').textContent = frameCount;
 
             document.getElementById('bar-water').style.width = (top ? Math.round(top.score * 100) : 0) + '%';
             document.getElementById('bar-reflect').style.width = (top ? Math.round(top.score * 100) : 0) + '%';
@@ -2983,9 +2971,87 @@
                     }
                 }
 
-                updateObjectMetrics(inZone);
+                updateObjectMetrics(inZone, objectFrameCount);
             } catch (e) {
                 console.error('Object detection error:', e);
+            }
+        }
+
+        function updatePeopleMetrics(people, frameCount) {
+            const sorted = [...people].sort((a, b) => b.score - a.score);
+            const top = sorted[0];
+
+            document.getElementById('m-water-pct').textContent = people.length;
+            document.getElementById('m-reflect').textContent = top ? Math.round(top.score * 100) + '%' : '0%';
+            document.getElementById('m-change').textContent = peopleEmailsSentCount;
+            document.getElementById('m-turbidity').textContent = frameCount;
+
+            document.getElementById('bar-water').style.width = Math.min(100, people.length * 25) + '%';
+            document.getElementById('bar-reflect').style.width = (top ? Math.round(top.score * 100) : 0) + '%';
+            document.getElementById('bar-change').style.width = Math.min(100, peopleEmailsSentCount * 20) + '%';
+            document.getElementById('bar-turbid').style.width = Math.min(100, people.length * 25) + '%';
+
+            const alertColor = people.length > 0 ? 'var(--danger)' : 'var(--accent)';
+            document.getElementById('bar-water').style.background = alertColor;
+            document.getElementById('m-water-pct').style.color = alertColor;
+
+            const count = people.length;
+            const labelEl = document.getElementById('risk-label');
+            labelEl.textContent = count === 0 ? 'CLEAR' : `${count} DETECTED`;
+            labelEl.className = 'risk-label ' + (count === 0 ? 'safe' : 'critical');
+
+            const valueEl = document.getElementById('risk-value');
+            valueEl.textContent = count;
+            valueEl.style.color = alertColor;
+            valueEl.style.textShadow = `0 0 20px ${alertColor}`;
+
+            const fill = document.getElementById('gauge-fill');
+            const circumference = 2 * Math.PI * 65;
+            const pct = Math.min(100, count * 25);
+            fill.style.strokeDashoffset = circumference - (pct / 100) * circumference;
+            fill.style.stroke = alertColor;
+            fill.style.filter = `drop-shadow(0 0 8px ${alertColor})`;
+        }
+
+        async function runPeopleDetectionFrame() {
+            if (!cocoModel) return;
+
+            peopleFrameCount++;
+            if (peopleFrameCount % 5 !== 0) return;
+
+            try {
+                const predictions = await cocoModel.detect(video);
+                lastDetectedPeople = predictions.filter(p => p.class === 'person' && p.score > 0.5);
+
+                const vWidth = video.videoWidth, vHeight = video.videoHeight;
+                const inZone = lastDetectedPeople.filter(p => {
+                    const [bx, by, bw, bh] = p.bbox;
+                    const cx = (bx + bw / 2) / vWidth;
+                    const cyFoot = (by + bh) / vHeight;
+                    const cyMid = (by + bh / 2) / vHeight;
+                    return pointInPolygon(cx, cyFoot, zonePoints) || pointInPolygon(cx, cyMid, zonePoints);
+                });
+                lastPeopleZoneCount = inZone.length;
+
+                const nowPresent = inZone.length > 0;
+                if (nowPresent !== lastPeopleAlertState) {
+                    lastPeopleAlertState = nowPresent;
+                    if (nowPresent) {
+                        addAlert(`🚨 Person detected in monitored zone! (${inZone.length})`, 'danger');
+                    } else {
+                        addAlert('✅ Zone is now clear of people', 'safe');
+                    }
+                }
+
+                if (inZone.length > 0) {
+                    const topScore = Math.max(...inZone.map(p => p.score));
+                    const sent = await triggerNotification(Math.round(topScore * 100), `${inZone.length} PERSON(S) DETECTED`);
+                    if (sent) peopleEmailsSentCount++;
+                }
+
+                updatePeopleMetrics(inZone, peopleFrameCount);
+            } catch (e) {
+                console.error('People detection error:', e);
             }
         }
 
@@ -3068,7 +3134,9 @@
                     ? `FLOOD MONITOR · RISK: ${Math.round(risk)}%`
                     : detectionMode === 'parking'
                     ? `PARKING WATCH · SCORE: ${Math.round(risk)}%`
-                    : `OBJECT DETECTION · ${lastObjectZoneCount} IN ZONE`;
+                    : detectionMode === 'object'
+                    ? `OBJECT DETECTION · ${lastObjectZoneCount} IN ZONE`
+                    : `PEOPLE DETECTION · ${lastPeopleZoneCount} IN ZONE`;
                 const lx = pts[0].x, ly = pts[0].y;
                 octx.font = 'bold 11px Orbitron, monospace';
                 const tw = octx.measureText(labelText).width;
@@ -3139,6 +3207,34 @@
                     octx.fillStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
                     octx.font = "bold 10px Orbitron, monospace";
                     const tag = `${obj.class.toUpperCase()} ${Math.round(obj.score * 100)}%`;
+                    const tagW = octx.measureText(tag).width;
+                    octx.fillRect(cx, cy - 18, tagW + 10, 18);
+
+                    octx.fillStyle = '#ffffff';
+                    octx.fillText(tag, cx + 5, cy - 5);
+                });
+            } else if (detectionMode === 'people' && cocoModel && lastDetectedPeople.length > 0) {
+                lastDetectedPeople.forEach(person => {
+                    const [bx, by, bw, bh] = person.bbox;
+                    const scaleX = cw / video.videoWidth;
+                    const scaleY = ch / video.videoHeight;
+                    const cx = bx * scaleX;
+                    const cy = by * scaleY;
+                    const cwid = bw * scaleX;
+                    const chei = bh * scaleY;
+
+                    const cp1 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh) / video.videoHeight };
+                    const cp2 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh / 2) / video.videoHeight };
+                    const isActive = pointInPolygon(cp1.x, cp1.y, zonePoints) ||
+                                     pointInPolygon(cp2.x, cp2.y, zonePoints);
+
+                    octx.strokeStyle = isActive ? 'rgba(255, 51, 85, 0.9)' : 'rgba(140, 150, 165, 0.55)';
+                    octx.lineWidth = 2.5;
+                    octx.strokeRect(cx, cy, cwid, chei);
+
+                    octx.fillStyle = isActive ? 'rgba(255, 51, 85, 0.9)' : 'rgba(140, 150, 165, 0.55)';
+                    octx.font = "bold 10px Orbitron, monospace";
+                    const tag = `PERSON ${Math.round(person.score * 100)}%`;
                     const tagW = octx.measureText(tag).width;
                     octx.fillRect(cx, cy - 18, tagW + 10, 18);
 
@@ -3472,19 +3568,21 @@
         }
 
         async function triggerNotification(riskScore, level) {
-            if (!notifActive || !subscriberEmail) return;
+            if (!notifActive || !subscriberEmail) return false;
 
             const now = Date.now();
             const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes cooldown
 
             if (now - lastNotifSentTime < COOLDOWN_MS) {
                 console.log('[notifications] Cooldown active, skipping alert send.');
-                return;
+                return false;
             }
 
             lastNotifSentTime = now;
             const camName = document.getElementById('cam-name').textContent;
-            const labelMode = detectionMode === 'flood' ? 'flood' : 'parking watch';
+            const labelMode = detectionMode === 'flood' ? 'flood'
+                : detectionMode === 'parking' ? 'parking watch'
+                : 'people detection';
             addAlert(`🚀 Requesting ${labelMode} alert email notification…`, 'info');
 
             let snapshotBase64 = null;
@@ -3522,13 +3620,32 @@
                 const data = await resp.json();
                 if (resp.ok && (data.ok || data.success)) {
                     addAlert(`✅ Alert notification request delivered!`, 'safe');
+                    return true;
                 } else {
                     throw new Error(data.message || data.error || 'Server error');
                 }
             } catch (err) {
                 addAlert(`⚠️ Alert request failed: ${err.message}`, 'warn');
                 lastNotifSentTime = 0;
+                return false;
             }
+        }
+
+        function waitForCocoSsdLibrary(timeoutMs = 15000) {
+            if (typeof cocoSsd !== 'undefined') return Promise.resolve();
+            // The coco-ssd/tfjs <script defer> tags may not have executed yet if this
+            // runs from the page's initial synchronous script (deferred scripts always
+            // run after inline scripts finish, regardless of document order) — poll
+            // instead of failing immediately.
+            return new Promise((resolve, reject) => {
+                const start = Date.now();
+                const check = () => {
+                    if (typeof cocoSsd !== 'undefined') return resolve();
+                    if (Date.now() - start > timeoutMs) return reject(new Error('coco-ssd library failed to load in time'));
+                    setTimeout(check, 100);
+                };
+                check();
+            });
         }
 
         async function loadCocoModel() {
@@ -3536,6 +3653,7 @@
             modelLoading = true;
             addAlert('🧠 Loading COCO-SSD Object Detection AI model…', 'info');
             try {
+                await waitForCocoSsdLibrary();
                 cocoModel = await cocoSsd.load();
                 addAlert('🧠 COCO-SSD AI model loaded successfully!', 'safe');
             } catch (err) {
@@ -3567,177 +3685,10 @@
             }
         }
 
-        function toggleSidebarPanel() {
-            const body = document.body;
-            const btn = document.getElementById('toggle-panel-btn');
-            const isFull = body.classList.toggle('video-only-mode');
-
-            if (isFull) {
-                btn.innerHTML = '🎛️ Show Controls';
-                addAlert('🖥️ Video-only mode enabled — control panel hidden', 'info');
-            } else {
-                btn.innerHTML = '🖥️ Video Only Mode';
-                addAlert('🎛️ Control panel restored', 'info');
-            }
-
-            // Trigger canvas dimension rescaling
-            setTimeout(() => {
-                window.dispatchEvent(new Event('resize'));
-            }, 100);
-        }
-
         // Cameras with direct open-CORS NVR streams (bypass hls-proxy)
         const NVR_DIRECT_URLS = {
             '145': 'https://jtmctrafficcctv2.gov.taipei/NVR/734b742e-6645-4be4-b7a9-80e32b259413/live.m3u8'
         };
-
-        // Camera list definition for grid
-        const preconfiguredCameras = [
-            { id: '145', name: '內湖港墘路口', station: '港墘站 Gangqian', dist: '184m' },
-            { id: '146', name: '成功路三段', station: '文德站 Wende', dist: '~350m' },
-            { id: '124', name: '康寧路三段', station: '東湖站 Donghu', dist: '175m' },
-            { id: '117', name: '舊宗路二段', station: '港墘站 Gangqian', dist: '~500m' },
-            { id: '335', name: '康寧路三段 (Alt)', station: '東湖站 Donghu', dist: '223m' },
-            { id: '109', name: '基湖路', station: '西湖站 Xihu', dist: '219m' },
-            { id: '119', name: '民權舊宗路口', station: '西湖站 Xihu', dist: '~400m' },
-            { id: '120', name: '民權堤頂路口', station: '西湖站 Xihu', dist: '~350m' },
-            { id: '143', name: '堤頂大道 (遠)', station: '西湖站 Xihu', dist: '530m' }
-        ];
-
-        let gridHlsInstances = [];
-        let gridOpen = false;
-
-        function toggleGridView() {
-            const overlay = document.getElementById('grid-view-overlay');
-            const btn = document.getElementById('toggle-grid-btn');
-
-            gridOpen = !gridOpen;
-
-            if (gridOpen) {
-                overlay.classList.remove('hidden');
-                btn.innerHTML = '🎛️ Monitor Mode';
-                addAlert('🖥️ Multi-camera grid view loaded — 8 streams running', 'info');
-
-                // Build the grid
-                const container = document.getElementById('grid-container');
-                container.innerHTML = '';
-
-                // Stop main video playback to save bandwidth
-                if (hls) { hls.stopLoad(); }
-                video.pause();
-
-                preconfiguredCameras.forEach(cam => {
-                    const card = document.createElement('div');
-                    card.className = 'grid-cam-card';
-                    card.onclick = () => {
-                        toggleGridView();
-                        loadCamera(cam.id, cam.name, cam.station, cam.dist + ' from station');
-                    };
-
-                    card.innerHTML = `
-                        <div class="grid-cam-card-title">
-                            <span>${cam.name}</span>
-                            <span style="opacity:0.6;font-size:0.6rem">CAM-${cam.id}</span>
-                        </div>
-                        <div class="grid-cam-card-video-container">
-                            <video autoplay muted playsinline></video>
-                        </div>
-                    `;
-
-                    container.appendChild(card);
-
-                    const videoEl = card.querySelector('video');
-                    playHLSInVideo(videoEl, cam.id);
-                });
-            } else {
-                overlay.classList.add('hidden');
-                btn.innerHTML = '🖥️ Multi-Cam Grid';
-
-                // Destroy HLS instances
-                gridHlsInstances.forEach(inst => inst.destroy());
-                gridHlsInstances = [];
-
-                // Resume main video
-                if (hls) { hls.startLoad(); }
-                video.play().catch(() => {});
-
-                addAlert('🎛️ Returned to single-camera active monitor', 'info');
-            }
-        }
-
-        function playHLSInVideo(videoEl, camId) {
-            // Check NVR direct URLs first (open CORS, no proxy needed)
-            if (NVR_DIRECT_URLS[camId]) {
-                const nvrUrl = NVR_DIRECT_URLS[camId] + '?_cb=' + Date.now();
-                if (Hls.isSupported()) {
-                    const hlsInst = new Hls({
-                        maxBufferLength: 6,
-                        maxMaxBufferLength: 12,
-                        liveSyncDurationCount: 2,
-                        lowLatencyMode: false,
-                        fragLoadingMaxRetry: 8
-                    });
-                    hlsInst.loadSource(nvrUrl);
-                    hlsInst.attachMedia(videoEl);
-                    hlsInst.on(Hls.Events.MANIFEST_PARSED, () => { videoEl.play().catch(() => {}); });
-                    hlsInst.on(Hls.Events.ERROR, (_, d) => {
-                        if (d.fatal) {
-                            if (d.type === Hls.ErrorTypes.NETWORK_ERROR) hlsInst.startLoad();
-                            else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) hlsInst.recoverMediaError();
-                            else hlsInst.destroy();
-                        }
-                    });
-                    gridHlsInstances.push(hlsInst);
-                } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-                    videoEl.src = NVR_DIRECT_URLS[camId];
-                }
-                return;
-            }
-
-            fetch(`/api/hls-proxy?action=init&id=${camId}`)
-                .then(resp => resp.json())
-                .then(data => {
-                    const baseUrl = data.ok && data.proxyPlaylist
-                        ? data.proxyPlaylist
-                        : `https://hls.bote.gov.taipei/live/cam-${camId}.m3u8`;
-
-                    // Append cache-buster — same fix as single-camera mode to avoid 410 Gone
-                    const finalUrl = baseUrl + (baseUrl.includes('?') ? '&' : '?') + '_cb=' + Date.now();
-
-                    if (Hls.isSupported()) {
-                        const hlsInst = new Hls({
-                            maxBufferLength: 2,
-                            maxMaxBufferLength: 4,
-                            liveSyncDurationCount: 1,
-                            lowLatencyMode: false,
-                            fragLoadingMaxRetry: 8,
-                            manifestLoadingMaxRetry: 5
-                        });
-                        hlsInst.loadSource(finalUrl);
-                        hlsInst.attachMedia(videoEl);
-
-                        hlsInst.on(Hls.Events.MANIFEST_PARSED, () => {
-                            videoEl.play().catch(() => {});
-                        });
-
-                        hlsInst.on(Hls.Events.ERROR, (_, d) => {
-                            if (d.fatal) {
-                                if (d.type === Hls.ErrorTypes.NETWORK_ERROR) hlsInst.startLoad();
-                                else if (d.type === Hls.ErrorTypes.MEDIA_ERROR) hlsInst.recoverMediaError();
-                                else hlsInst.destroy();
-                            }
-                        });
-
-                        gridHlsInstances.push(hlsInst);
-                    } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-                        videoEl.src = finalUrl;
-                    }
-                })
-                .catch(err => {
-                    console.error('Grid video stream load error:', err);
-                });
-        }
-
 
         // ── Feedback Modal Logic ──
         const SHEETS_FEEDBACK_API = 'https://script.google.com/macros/s/AKfycbyzZ6elY9n_Bnn6gRVukIYZ0TSwfscJkKLLhpuSdR-FvK8UQ0YkjTL5xtSSMm6SckkOYg/exec';
@@ -3800,7 +3751,7 @@
 
             const payload = {
                 action: 'feedback',
-                app: 'FloodWatch AI',
+                app: 'VisionWatch AI',
                 category: category,
                 name: name || 'Anonymous',
                 email: email || 'No email',
@@ -3851,8 +3802,8 @@
         } else {
             requestAnimationFrame(initFeedbackModal);
         }
-        addAlert('FloodWatch AI initialized — select a camera to begin', 'info');
-        addAlert('Pre-loaded: Neihu District cameras near Brown Line MRT', 'info');
+        addAlert('VisionWatch AI initialized — enter a source below to begin', 'info');
+        setDetectionMode('object');
     </script>
 
     <!-- ── Feedback / Suggestion Modal (strictly hidden by default) ── -->

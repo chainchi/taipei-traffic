@@ -66,16 +66,21 @@ export async function onRequestPost(context) {
 
 function alertCopy(mode, camera, riskScore, timeStr) {
     const isParking = mode === 'parking';
+    const isPeople = mode === 'people';
     return {
         isParking,
-        subjectPrefix: isParking ? '🚨 [Parking Watch Alert]' : '🚨 [FloodWatch Alert]',
-        title: isParking ? '⚠️ 車位占用即時警報 (Parking Watch AI)' : '⚠️ 淹水即時警報 (FloodWatch AI)',
-        bodyDesc: isParking
+        isPeople,
+        subjectPrefix: isPeople ? '🚨 [People Detected Alert]' : isParking ? '🚨 [Parking Watch Alert]' : '🚨 [VisionWatch Alert]',
+        subjectStatus: isPeople ? 'PERSON DETECTED' : isParking ? 'PARKED' : 'CRITICAL',
+        title: isPeople ? '⚠️ 監控區域偵測到人員 (VisionWatch AI)' : isParking ? '⚠️ 車位占用即時警報 (Parking Watch AI)' : '⚠️ 淹水即時警報 (VisionWatch AI)',
+        bodyDesc: isPeople
+            ? '系統偵測到有人進入您設定的監控區域，請多加留意。'
+            : isParking
             ? '系統偵測到車位被長時間占用 / 違規停車，請多加留意。'
             : '系統偵測到高度淹水風險，請多加留意安全。',
-        statusLabel: isParking ? '車位狀態' : '安全層級',
-        statusValue: isParking ? 'PARKED (占用)' : 'CRITICAL (危險)',
-        riskLabelText: isParking ? '空間判定值' : '淹水風險值',
+        statusLabel: isPeople ? '偵測狀態' : isParking ? '車位狀態' : '安全層級',
+        statusValue: isPeople ? 'PERSON DETECTED (有人)' : isParking ? 'PARKED (占用)' : 'CRITICAL (危險)',
+        riskLabelText: isPeople ? '信心度' : isParking ? '空間判定值' : '淹水風險值',
         camera,
         riskScore,
         timeStr
@@ -114,7 +119,7 @@ function snapshotBlock(hasSnapshot) {
 
 function buildAdminEmail(developerEmail, subscriberEmail, camera, riskScore, mode, timeStr, hasSnapshot) {
     const c = alertCopy(mode, camera, riskScore, timeStr);
-    const subject = `${c.subjectPrefix} ${c.camera} - Status: ${c.isParking ? 'PARKED' : 'CRITICAL'} (${Math.round(c.riskScore)}%)`;
+    const subject = `${c.subjectPrefix} ${c.camera} - Status: ${c.subjectStatus} (${Math.round(c.riskScore)}%)`;
     const html = emailShell(`
         <h2 style="color: #ff3355; font-size: 24px; border-bottom: 1px solid rgba(255,51,85,0.2); padding-bottom: 10px; margin-top: 0;">${c.title}</h2>
         <p style="font-size: 16px; line-height: 1.6;">${c.bodyDesc}</p>
@@ -125,20 +130,20 @@ function buildAdminEmail(developerEmail, subscriberEmail, camera, riskScore, mod
             <p style="margin: 8px 0 0 0; font-size: 13px; color: #6b7fa0;">此訂閱者已同時收到本通知信件。</p>
         </div>
         ${detailsTable(c)}
-        <p style="font-size: 13px; color: #6b7fa0; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; text-align: center;">此信件由 FloodWatch AI 監控系統自動發送，請勿直接回信。</p>
+        <p style="font-size: 13px; color: #6b7fa0; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; text-align: center;">此信件由 VisionWatch AI 監控系統自動發送，請勿直接回信。</p>
     `);
     return { to: developerEmail, subject, html };
 }
 
 function buildSubscriberEmail(subscriberEmail, camera, riskScore, mode, timeStr, hasSnapshot) {
     const c = alertCopy(mode, camera, riskScore, timeStr);
-    const subject = `${c.subjectPrefix} ${c.camera} - Status: ${c.isParking ? 'PARKED' : 'CRITICAL'} (${Math.round(c.riskScore)}%)`;
+    const subject = `${c.subjectPrefix} ${c.camera} - Status: ${c.subjectStatus} (${Math.round(c.riskScore)}%)`;
     const html = emailShell(`
         <h2 style="color: #ff3355; font-size: 24px; border-bottom: 1px solid rgba(255,51,85,0.2); padding-bottom: 10px; margin-top: 0;">${c.title}</h2>
         <p style="font-size: 16px; line-height: 1.6;">${c.bodyDesc}</p>
         ${snapshotBlock(hasSnapshot)}
         ${detailsTable(c)}
-        <p style="font-size: 13px; color: #6b7fa0; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; text-align: center;">此信件由 FloodWatch AI 監控系統自動發送，請勿直接回信。</p>
+        <p style="font-size: 13px; color: #6b7fa0; margin-top: 30px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 15px; text-align: center;">此信件由 VisionWatch AI 監控系統自動發送，請勿直接回信。</p>
     `);
     return { to: subscriberEmail, subject, html };
 }
