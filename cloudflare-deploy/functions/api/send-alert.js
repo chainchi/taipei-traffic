@@ -67,24 +67,45 @@ export async function onRequestPost(context) {
 function alertCopy(mode, camera, riskScore, timeStr) {
     const isParking = mode === 'parking';
     const isPeople = mode === 'people';
-    return {
-        isParking,
-        isPeople,
-        subjectPrefix: isPeople ? '🚨 [People Detected Alert]' : isParking ? '🚨 [Parking Watch Alert]' : '🚨 [VisionWatch Alert]',
-        subjectStatus: isPeople ? 'PERSON DETECTED' : isParking ? 'PARKED' : 'CRITICAL',
-        title: isPeople ? '⚠️ 監控區域偵測到人員 (VisionWatch AI)' : isParking ? '⚠️ 車位占用即時警報 (Parking Watch AI)' : '⚠️ 淹水即時警報 (VisionWatch AI)',
-        bodyDesc: isPeople
-            ? '系統偵測到有人進入您設定的監控區域，請多加留意。'
-            : isParking
-            ? '系統偵測到車位被長時間占用 / 違規停車，請多加留意。'
-            : '系統偵測到高度淹水風險，請多加留意安全。',
-        statusLabel: isPeople ? '偵測狀態' : isParking ? '車位狀態' : '安全層級',
-        statusValue: isPeople ? 'PERSON DETECTED (有人)' : isParking ? 'PARKED (占用)' : 'CRITICAL (危險)',
-        riskLabelText: isPeople ? '信心度' : isParking ? '空間判定值' : '淹水風險值',
-        camera,
-        riskScore,
-        timeStr
-    };
+    const isFall = mode === 'fall';
+
+    let subjectPrefix, subjectStatus, title, bodyDesc, statusLabel, statusValue, riskLabelText;
+
+    if (isFall) {
+        subjectPrefix = '🚨🚑 [EMERGENCY — Possible Fall Detected]';
+        subjectStatus = 'FALL DETECTED';
+        title = '🚑 緊急：監控區域偵測到有人倒地 (VisionWatch AI)';
+        bodyDesc = '系統偵測到有人在您設定的監控區域內倒地不起，可能因暈眩或身體不適而跌倒，請盡速確認並提供協助！';
+        statusLabel = '緊急狀態';
+        statusValue = 'FALL DETECTED (緊急)';
+        riskLabelText = '信心度';
+    } else if (isPeople) {
+        subjectPrefix = '🚨 [People Detected Alert]';
+        subjectStatus = 'PERSON DETECTED';
+        title = '⚠️ 監控區域偵測到人員 (VisionWatch AI)';
+        bodyDesc = '系統偵測到有人進入您設定的監控區域，請多加留意。';
+        statusLabel = '偵測狀態';
+        statusValue = 'PERSON DETECTED (有人)';
+        riskLabelText = '信心度';
+    } else if (isParking) {
+        subjectPrefix = '🚨 [Parking Watch Alert]';
+        subjectStatus = 'PARKED';
+        title = '⚠️ 車位占用即時警報 (Parking Watch AI)';
+        bodyDesc = '系統偵測到車位被長時間占用 / 違規停車，請多加留意。';
+        statusLabel = '車位狀態';
+        statusValue = 'PARKED (占用)';
+        riskLabelText = '空間判定值';
+    } else {
+        subjectPrefix = '🚨 [VisionWatch Alert]';
+        subjectStatus = 'CRITICAL';
+        title = '⚠️ 淹水即時警報 (VisionWatch AI)';
+        bodyDesc = '系統偵測到高度淹水風險，請多加留意安全。';
+        statusLabel = '安全層級';
+        statusValue = 'CRITICAL (危險)';
+        riskLabelText = '淹水風險值';
+    }
+
+    return { isParking, isPeople, isFall, subjectPrefix, subjectStatus, title, bodyDesc, statusLabel, statusValue, riskLabelText, camera, riskScore, timeStr };
 }
 
 function detailsTable(c) {

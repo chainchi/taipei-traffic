@@ -4,8 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VisionWatch AI — Live Flood, Parking &amp; Object Detection</title>
-    <meta name="description" content="Real-time flood detection, parking watch, and AI object detection over live camera video streams">
+    <title>VisionWatch AI — Flood, Parking, People &amp; Fall Detection (路倒偵測)</title>
+    <meta name="description" content="Real-time flood detection, parking watch, object recognition, people detection, and AI fall/collapse detection (路倒偵測) over live camera video streams">
     <link
         href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Orbitron:wght@400;500;700;900&display=swap"
         rel="stylesheet">
@@ -175,36 +175,34 @@
             flex-direction: column;
         }
 
-        .video-header {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            padding: 12px 20px;
-            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8) 0%, transparent 100%);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            z-index: 10;
+        /* Mode bar: its own row above the video, so mode buttons never overlay
+           or compete with the video image / live badge, and can wrap freely. */
+        .mode-bar {
+            flex-shrink: 0;
+            padding: 10px 20px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
         }
 
+        /* Status pills (live badge, camera name/location) — downsized and
+           moved into the bottom bar alongside FPS/Analysis/REC. */
         .live-badge {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             background: rgba(255, 51, 85, 0.15);
             border: 1px solid rgba(255, 51, 85, 0.4);
-            padding: 3px 10px;
+            padding: 2px 7px;
             border-radius: 4px;
             font-family: var(--display);
-            font-size: 0.6rem;
-            letter-spacing: 2px;
+            font-size: 0.5rem;
+            letter-spacing: 1.5px;
             color: var(--danger);
         }
 
         .live-dot {
-            width: 6px;
-            height: 6px;
+            width: 5px;
+            height: 5px;
             background: var(--danger);
             border-radius: 50%;
             box-shadow: 0 0 6px var(--danger);
@@ -217,16 +215,19 @@
         }
 
         .cam-name {
-            font-size: 0.78rem;
+            font-size: 0.66rem;
             font-weight: 600;
             color: #fff;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            padding: 3px 8px;
+            border-radius: 4px;
         }
 
         .cam-location {
-            font-size: 0.65rem;
+            font-size: 0.6rem;
             color: var(--text-dim);
-            margin-left: auto;
         }
 
         .video-container {
@@ -436,6 +437,7 @@
             cursor: pointer;
             transition: all 0.2s;
             white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .btn:hover {
@@ -458,23 +460,26 @@
             box-shadow: 0 0 20px var(--glow2);
         }
 
-        /* FPS / status badges */
+        /* Status/FPS/REC badges — all anchored along the bottom of the video frame */
         .video-badges {
             position: absolute;
-            bottom: 50px;
-            left: 14px;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
             display: flex;
-            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
             z-index: 10;
         }
 
         .badge {
             background: rgba(0, 0, 0, 0.7);
             border: 1px solid var(--border);
-            padding: 4px 10px;
+            padding: 3px 8px;
             border-radius: 4px;
             font-family: monospace;
-            font-size: 0.68rem;
+            font-size: 0.6rem;
             color: var(--text-dim);
         }
 
@@ -482,17 +487,17 @@
         .rec-btn {
             background: rgba(0, 0, 0, 0.7);
             border: 1px solid rgba(255, 51, 85, 0.4);
-            padding: 4px 12px;
+            padding: 3px 10px;
             border-radius: 4px;
             font-family: var(--display);
-            font-size: 0.65rem;
+            font-size: 0.58rem;
             letter-spacing: 1px;
             color: var(--danger);
             cursor: pointer;
             transition: all 0.2s;
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 5px;
         }
 
         .rec-btn:hover {
@@ -534,7 +539,7 @@
 
         /* ── Sidebar ── */
         .sidebar {
-            width: 360px;
+            width: 400px;
             background: var(--panel);
             backdrop-filter: blur(16px);
             border-left: 1px solid var(--border);
@@ -1020,8 +1025,8 @@
 
         /* Mode toggle styles */
         .mode-selector {
-            margin-left: auto;
             display: flex;
+            flex-wrap: wrap;
             gap: 6px;
             align-items: center;
         }
@@ -1058,47 +1063,39 @@
                 height: auto;
             }
 
-            /* Video section: fixed height on mobile */
+            /* Video section: reduced height on mobile — traded for a less
+               cramped, always-reachable control layout below it. */
             .video-section {
                 flex: none;
-                height: 46vh;
-                min-height: 220px;
+                height: 34vh;
+                min-height: 180px;
             }
 
-            /* Sidebar becomes a full-width scrollable panel below video */
+            /* Mode bar: smaller buttons so more fit per row before wrapping */
+            .mode-bar {
+                padding: 8px 12px;
+            }
+            .mode-btn {
+                padding: 5px 9px;
+                font-size: 0.64rem;
+            }
+
+            /* Sidebar becomes a normal full-width panel below the video —
+               everything in one continuous vertical scroll, no swiping. */
             .sidebar {
                 width: 100%;
                 border-left: none;
                 border-top: 1px solid var(--border);
-                flex-direction: row;      /* sections side by side */
-                overflow-x: auto;
-                overflow-y: hidden;
+                flex-direction: column;
+                overflow: visible;
                 flex-shrink: 0;
                 height: auto;
                 max-height: none;
-                scroll-snap-type: x mandatory;
-                -webkit-overflow-scrolling: touch;
             }
 
-            .sidebar::-webkit-scrollbar { height: 3px; }
-
-            /* Each section becomes a snap card */
             .sidebar-section {
-                flex: none !important;
-                width: 88vw !important;
-                max-width: 360px;
-                border-bottom: none;
-                border-right: 1px solid var(--border);
-                scroll-snap-align: start;
-                overflow-y: auto;
-                max-height: 54vh;
-            }
-
-            /* Make the alert log section taller on mobile */
-            .sidebar-section:last-child {
+                width: 100%;
                 border-right: none;
-                flex: none !important;
-                width: 88vw !important;
             }
 
             /* Source panel: full width, scrollable */
@@ -1118,31 +1115,13 @@
             .gauge-ring svg { width: 100px; height: 100px; }
             .gauge-value { font-size: 1.6rem !important; }
 
-            /* Mobile scroll hint label */
-            .sidebar::before {
-                content: '← swipe for more →';
-                display: block;
-                flex: none;
-                width: 100%;
-                text-align: center;
-                font-size: 0.6rem;
-                color: var(--text-dim);
-                letter-spacing: 1.5px;
-                padding: 6px 0 2px;
-                position: absolute;
-                top: 0;
-                left: 0;
-                pointer-events: none;
-                opacity: 0.6;
-                z-index: 1;
-            }
-
-            /* Topbar: compact on mobile */
+            /* Topbar: compact on mobile, hide non-essential decoration */
             .topbar {
                 padding: 8px 12px;
             }
             .topbar-subtitle { display: none; }
             .topbar-sep { display: none; }
+            .made-with-banner { display: none; }
 
             /* Badges: move up a bit */
             .video-badges {
@@ -1305,6 +1284,8 @@
     <!-- TensorFlow.js and COCO-SSD for real-time AI vehicle detection (loaded non-blocking with guaranteed execution order) -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js" defer></script>
+    <!-- MoveNet pose estimation for Fall Detection (body keypoints, not just bounding boxes) -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js" defer></script>
 </head>
 
 
@@ -1333,18 +1314,13 @@
 
         <!-- ── Video ── -->
         <div class="video-section" id="video-section">
-            <div class="video-header">
-                <div class="live-badge">
-                    <div class="live-dot"></div>
-                    LIVE
-                </div>
-                <div class="cam-name" id="cam-name">No Source Loaded</div>
-                <div class="cam-location" id="cam-location"></div>
+            <div class="mode-bar">
                 <div class="mode-selector">
                     <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')">🌊 Flood Detection</button>
                     <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')">🚗 Parking Watch</button>
                     <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')">🔍 Object Detection</button>
                     <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')">👤 People Detection</button>
+                    <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')">🚑 Fall Detection</button>
                 </div>
             </div>
 
@@ -1356,6 +1332,12 @@
             </div>
 
             <div class="video-badges">
+                <div class="live-badge">
+                    <div class="live-dot"></div>
+                    LIVE
+                </div>
+                <div class="cam-name" id="cam-name">No Source Loaded</div>
+                <div class="cam-location" id="cam-location"></div>
                 <div class="badge" id="fps-badge">-- FPS</div>
                 <div class="badge" id="analysis-badge">Analysis: OFF</div>
                 <button class="rec-btn" id="rec-btn" onclick="toggleRecording()">
@@ -1890,6 +1872,15 @@
         let lastPeopleAlertState = false;
         let peopleEmailsSentCount = 0;
 
+        // Fall Detection mode (zone-gated posture detection via MoveNet + email alerts)
+        let poseModel = null;
+        let poseModelLoading = false;
+        let fallFrameCount = 0;
+        let lastDetectedFallen = [];
+        let lastFallZoneCount = 0;
+        let lastFallAlertState = false;
+        let fallEmailsSentCount = 0;
+
         // Recording state
         let isRecording = false;
         let mediaRecorder = null;
@@ -1922,12 +1913,14 @@
             const parkingBtn = document.getElementById('mode-parking-btn');
             const objectBtn = document.getElementById('mode-object-btn');
             const peopleBtn = document.getElementById('mode-people-btn');
+            const fallBtn = document.getElementById('mode-fall-btn');
 
             // Toggle active styles
             floodBtn.classList.toggle('active', mode === 'flood');
             parkingBtn.classList.toggle('active', mode === 'parking');
             objectBtn.classList.toggle('active', mode === 'object');
             peopleBtn.classList.toggle('active', mode === 'people');
+            fallBtn.classList.toggle('active', mode === 'fall');
 
             if (mode === 'flood') {
                 addAlert('🔄 Switched to Flood Detection Mode', 'info');
@@ -1943,7 +1936,7 @@
                 lastObjectClassSet = '';
                 objectFrameCount = 0;
                 updateColors(0, 0, 0, 0);
-            } else {
+            } else if (mode === 'people') {
                 addAlert('🔄 Switched to People Detection Mode — initializing AI... Draw a zone to choose the detection area. Email alerts fire when someone enters it.', 'info');
                 loadCocoModel();
                 lastDetectedPeople = [];
@@ -1951,6 +1944,15 @@
                 lastPeopleAlertState = false;
                 peopleFrameCount = 0;
                 peopleEmailsSentCount = 0;
+                updateColors(0, 0, 0, 0);
+            } else {
+                addAlert('🔄 Switched to Fall Detection Mode — initializing pose AI... Draw a zone to choose the detection area. Email alerts fire when someone appears to be lying down in it.', 'info');
+                loadPoseModel();
+                lastDetectedFallen = [];
+                lastFallZoneCount = 0;
+                lastFallAlertState = false;
+                fallFrameCount = 0;
+                fallEmailsSentCount = 0;
                 updateColors(0, 0, 0, 0);
             }
 
@@ -1989,8 +1991,17 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
                 document.getElementById('risk-label').textContent = 'NONE';
                 document.getElementById('risk-label').className = 'risk-label safe';
-            } else {
+            } else if (mode === 'people') {
                 if (gaugeTitle) gaugeTitle.textContent = 'People Detected';
+                if (gaugeUnit) gaugeUnit.textContent = 'COUNT';
+                if (mWaterLabel) mWaterLabel.textContent = 'Detected';
+                if (mReflectLabel) mReflectLabel.textContent = 'Confidence';
+                if (mChangeLabel) mChangeLabel.textContent = 'Emails Sent';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
+                document.getElementById('risk-label').textContent = 'CLEAR';
+                document.getElementById('risk-label').className = 'risk-label safe';
+            } else {
+                if (gaugeTitle) gaugeTitle.textContent = 'People Down';
                 if (gaugeUnit) gaugeUnit.textContent = 'COUNT';
                 if (mWaterLabel) mWaterLabel.textContent = 'Detected';
                 if (mReflectLabel) mReflectLabel.textContent = 'Confidence';
@@ -2008,6 +2019,8 @@
                 updateObjectMetrics([], objectFrameCount);
             } else if (mode === 'people') {
                 updatePeopleMetrics([], peopleFrameCount);
+            } else if (mode === 'fall') {
+                updateFallMetrics([], fallFrameCount);
             } else {
                 updateGauge(0);
                 updateMetrics(0, 0, 0, 0);
@@ -2207,7 +2220,9 @@
                                     }, 2000);
                                 } else {
                                     addAlert('🔄 Network issue — retrying…', 'info');
-                                    setTimeout(() => { if (hls) { hls.loadSource(url + '&_cb=' + Date.now()); } }, 2000);
+                                    setTimeout(() => {
+                                        if (hls) { hls.loadSource(url + (url.includes('?') ? '&' : '?') + '_cb=' + Date.now()); }
+                                    }, 2000);
                                 }
                                 break;
                             case Hls.ErrorTypes.MEDIA_ERROR:
@@ -2570,6 +2585,13 @@
             if (detectionMode === 'people') {
                 runPeopleDetectionFrame();
                 drawOverlay(null, Math.min(100, lastPeopleZoneCount * 25));
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
+            if (detectionMode === 'fall') {
+                runFallDetectionFrame();
+                drawOverlay(null, Math.min(100, lastFallZoneCount * 50));
                 animId = requestAnimationFrame(analyzeLoop);
                 return;
             }
@@ -3056,6 +3078,154 @@
         }
 
         // ════════════════════════════════════════════════════════════════
+        //  FALL DETECTION ENGINE (posture, via MoveNet body keypoints)
+        // ════════════════════════════════════════════════════════════════
+        function waitForPoseDetectionLibrary(timeoutMs = 15000) {
+            if (typeof poseDetection !== 'undefined') return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const start = Date.now();
+                const check = () => {
+                    if (typeof poseDetection !== 'undefined') return resolve();
+                    if (Date.now() - start > timeoutMs) return reject(new Error('pose-detection library failed to load in time'));
+                    setTimeout(check, 100);
+                };
+                check();
+            });
+        }
+
+        async function loadPoseModel() {
+            if (poseModel || poseModelLoading) return;
+            poseModelLoading = true;
+            addAlert('🧠 Loading MoveNet Pose Detection AI model…', 'info');
+            try {
+                await waitForPoseDetectionLibrary();
+                poseModel = await poseDetection.createDetector(poseDetection.SupportedModels.MoveNet, {
+                    modelType: poseDetection.movenet.modelType.MULTIPOSE_LIGHTNING
+                });
+                addAlert('🧠 MoveNet Pose Detection AI model loaded successfully!', 'safe');
+            } catch (err) {
+                console.error('Failed to load pose-detection model:', err);
+                addAlert('⚠️ Pose detection AI model failed to load.', 'warn');
+                poseModel = null;
+            } finally {
+                poseModelLoading = false;
+            }
+        }
+
+        const POSE_KEYPOINT_MIN_SCORE = 0.3;
+
+        const FALL_SKELETON_EDGES = [
+            ['left_shoulder', 'right_shoulder'],
+            ['left_shoulder', 'left_hip'], ['right_shoulder', 'right_hip'], ['left_hip', 'right_hip'],
+            ['left_shoulder', 'left_elbow'], ['left_elbow', 'left_wrist'],
+            ['right_shoulder', 'right_elbow'], ['right_elbow', 'right_wrist'],
+            ['left_hip', 'left_knee'], ['left_knee', 'left_ankle'],
+            ['right_hip', 'right_knee'], ['right_knee', 'right_ankle']
+        ];
+
+        // A standing/sitting/crouching body's confidently-visible keypoints span
+        // taller than wide; a body lying on the ground spans wider than tall.
+        // This ratio check is more robust to partial occlusion (e.g. an arm out
+        // of frame) than computing a torso-angle, which breaks down whenever the
+        // hip or shoulder keypoints individually drop below the score threshold.
+        function classifyPosture(pose, vWidth, vHeight) {
+            const kps = pose.keypoints.filter(k => k.score >= POSE_KEYPOINT_MIN_SCORE);
+            if (kps.length < 4) return null;
+
+            const xs = kps.map(k => k.x);
+            const ys = kps.map(k => k.y);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const width = maxX - minX;
+            const height = maxY - minY;
+            const avgScore = kps.reduce((s, k) => s + k.score, 0) / kps.length;
+
+            return {
+                isFallen: width > height * 1.2,
+                keypoints: kps,
+                bbox: [minX, minY, width, height],
+                centerX: ((minX + maxX) / 2) / vWidth,
+                centerY: ((minY + maxY) / 2) / vHeight,
+                score: avgScore
+            };
+        }
+
+        function updateFallMetrics(fallen, frameCount) {
+            const sorted = [...fallen].sort((a, b) => b.score - a.score);
+            const top = sorted[0];
+
+            document.getElementById('m-water-pct').textContent = fallen.length;
+            document.getElementById('m-reflect').textContent = top ? Math.round(top.score * 100) + '%' : '0%';
+            document.getElementById('m-change').textContent = fallEmailsSentCount;
+            document.getElementById('m-turbidity').textContent = frameCount;
+
+            document.getElementById('bar-water').style.width = Math.min(100, fallen.length * 50) + '%';
+            document.getElementById('bar-reflect').style.width = (top ? Math.round(top.score * 100) : 0) + '%';
+            document.getElementById('bar-change').style.width = Math.min(100, fallEmailsSentCount * 20) + '%';
+            document.getElementById('bar-turbid').style.width = Math.min(100, fallen.length * 50) + '%';
+
+            const alertColor = fallen.length > 0 ? 'var(--danger)' : 'var(--accent)';
+            document.getElementById('bar-water').style.background = alertColor;
+            document.getElementById('m-water-pct').style.color = alertColor;
+
+            const count = fallen.length;
+            const labelEl = document.getElementById('risk-label');
+            labelEl.textContent = count === 0 ? 'CLEAR' : `${count} DOWN`;
+            labelEl.className = 'risk-label ' + (count === 0 ? 'safe' : 'critical');
+
+            const valueEl = document.getElementById('risk-value');
+            valueEl.textContent = count;
+            valueEl.style.color = alertColor;
+            valueEl.style.textShadow = `0 0 20px ${alertColor}`;
+
+            const fill = document.getElementById('gauge-fill');
+            const circumference = 2 * Math.PI * 65;
+            const pct = Math.min(100, count * 50);
+            fill.style.strokeDashoffset = circumference - (pct / 100) * circumference;
+            fill.style.stroke = alertColor;
+            fill.style.filter = `drop-shadow(0 0 8px ${alertColor})`;
+        }
+
+        async function runFallDetectionFrame() {
+            if (!poseModel) return;
+
+            fallFrameCount++;
+            if (fallFrameCount % 5 !== 0) return;
+
+            try {
+                const poses = await poseModel.estimatePoses(video);
+                const vWidth = video.videoWidth, vHeight = video.videoHeight;
+
+                lastDetectedFallen = poses
+                    .map(pose => classifyPosture(pose, vWidth, vHeight))
+                    .filter(p => p && p.isFallen);
+
+                const inZone = lastDetectedFallen.filter(p => pointInPolygon(p.centerX, p.centerY, zonePoints));
+                lastFallZoneCount = inZone.length;
+
+                const nowPresent = inZone.length > 0;
+                if (nowPresent !== lastFallAlertState) {
+                    lastFallAlertState = nowPresent;
+                    if (nowPresent) {
+                        addAlert(`🚨 FALL DETECTED — person lying on the ground in monitored zone! (${inZone.length})`, 'danger');
+                    } else {
+                        addAlert('✅ Zone clear — no one lying down detected', 'safe');
+                    }
+                }
+
+                if (inZone.length > 0) {
+                    const topScore = Math.max(...inZone.map(p => p.score));
+                    const sent = await triggerNotification(Math.round(topScore * 100), `${inZone.length} FALL(S) DETECTED`);
+                    if (sent) fallEmailsSentCount++;
+                }
+
+                updateFallMetrics(inZone, fallFrameCount);
+            } catch (e) {
+                console.error('Fall detection error:', e);
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
         //  OVERLAY DRAWING
         // ════════════════════════════════════════════════════════════════
         function drawOverlay(zone, risk) {
@@ -3136,7 +3306,9 @@
                     ? `PARKING WATCH · SCORE: ${Math.round(risk)}%`
                     : detectionMode === 'object'
                     ? `OBJECT DETECTION · ${lastObjectZoneCount} IN ZONE`
-                    : `PEOPLE DETECTION · ${lastPeopleZoneCount} IN ZONE`;
+                    : detectionMode === 'people'
+                    ? `PEOPLE DETECTION · ${lastPeopleZoneCount} IN ZONE`
+                    : `FALL DETECTION · ${lastFallZoneCount} DOWN`;
                 const lx = pts[0].x, ly = pts[0].y;
                 octx.font = 'bold 11px Orbitron, monospace';
                 const tw = octx.measureText(labelText).width;
@@ -3240,6 +3412,48 @@
 
                     octx.fillStyle = '#ffffff';
                     octx.fillText(tag, cx + 5, cy - 5);
+                });
+            } else if (detectionMode === 'fall' && poseModel && lastDetectedFallen.length > 0) {
+                const scaleX = cw / video.videoWidth;
+                const scaleY = ch / video.videoHeight;
+
+                lastDetectedFallen.forEach(person => {
+                    const isActive = pointInPolygon(person.centerX, person.centerY, zonePoints);
+                    const color = isActive ? 'rgba(255, 23, 68, 0.95)' : 'rgba(140, 150, 165, 0.55)';
+
+                    const byName = {};
+                    person.keypoints.forEach(k => { byName[k.name] = k; });
+                    octx.strokeStyle = color;
+                    octx.lineWidth = 2;
+                    FALL_SKELETON_EDGES.forEach(([a, b]) => {
+                        const ka = byName[a], kb = byName[b];
+                        if (!ka || !kb) return;
+                        octx.beginPath();
+                        octx.moveTo(ka.x * scaleX, ka.y * scaleY);
+                        octx.lineTo(kb.x * scaleX, kb.y * scaleY);
+                        octx.stroke();
+                    });
+                    person.keypoints.forEach(k => {
+                        octx.beginPath();
+                        octx.arc(k.x * scaleX, k.y * scaleY, 3, 0, Math.PI * 2);
+                        octx.fillStyle = color;
+                        octx.fill();
+                    });
+
+                    const [bx, by, bw, bh] = person.bbox;
+                    const cx = bx * scaleX, cy = by * scaleY, cwid = bw * scaleX, chei = bh * scaleY;
+                    octx.strokeStyle = color;
+                    octx.lineWidth = 2.5;
+                    octx.strokeRect(cx, cy, cwid, chei);
+
+                    octx.fillStyle = color;
+                    octx.font = "bold 11px Orbitron, monospace";
+                    const tag = `⚠ FALLEN ${Math.round(person.score * 100)}%`;
+                    const tagW = octx.measureText(tag).width;
+                    octx.fillRect(cx, cy - 20, tagW + 10, 20);
+
+                    octx.fillStyle = '#ffffff';
+                    octx.fillText(tag, cx + 5, cy - 6);
                 });
             }
         }
@@ -3582,7 +3796,8 @@
             const camName = document.getElementById('cam-name').textContent;
             const labelMode = detectionMode === 'flood' ? 'flood'
                 : detectionMode === 'parking' ? 'parking watch'
-                : 'people detection';
+                : detectionMode === 'people' ? 'people detection'
+                : 'fall detection';
             addAlert(`🚀 Requesting ${labelMode} alert email notification…`, 'info');
 
             let snapshotBase64 = null;
