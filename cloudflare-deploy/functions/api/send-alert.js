@@ -68,10 +68,19 @@ function alertCopy(mode, camera, riskScore, timeStr) {
     const isParking = mode === 'parking';
     const isPeople = mode === 'people';
     const isFall = mode === 'fall';
+    const isPlate = mode === 'plate';
 
     let subjectPrefix, subjectStatus, title, bodyDesc, statusLabel, statusValue, riskLabelText;
 
-    if (isFall) {
+    if (isPlate) {
+        subjectPrefix = '🚨🔢 [License Plate Match]';
+        subjectStatus = 'PLATE MATCHED';
+        title = '🔢 監控區域偵測到目標車牌 (VisionWatch AI)';
+        bodyDesc = '系統在您設定的監控區域內偵測到您指定的車牌號碼，請多加留意。';
+        statusLabel = '偵測狀態';
+        statusValue = 'PLATE MATCHED (車牌相符)';
+        riskLabelText = '信心度';
+    } else if (isFall) {
         subjectPrefix = '🚨🚑 [EMERGENCY — Possible Fall Detected]';
         subjectStatus = 'FALL DETECTED';
         title = '🚑 緊急：監控區域偵測到有人倒地 (VisionWatch AI)';
@@ -105,7 +114,7 @@ function alertCopy(mode, camera, riskScore, timeStr) {
         riskLabelText = '淹水風險值';
     }
 
-    return { isParking, isPeople, isFall, subjectPrefix, subjectStatus, title, bodyDesc, statusLabel, statusValue, riskLabelText, camera, riskScore, timeStr };
+    return { isParking, isPeople, isFall, isPlate, subjectPrefix, subjectStatus, title, bodyDesc, statusLabel, statusValue, riskLabelText, camera, riskScore, timeStr };
 }
 
 function detailsTable(c) {

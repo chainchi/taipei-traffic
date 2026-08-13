@@ -1286,6 +1286,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js" defer></script>
     <!-- MoveNet pose estimation for Fall Detection (body keypoints, not just bounding boxes) -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js" defer></script>
+    <!-- Tesseract.js OCR for License Plate Detection -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 </head>
 
 
@@ -1321,6 +1323,7 @@
                     <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')">🔍 Object Detection</button>
                     <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')">👤 People Detection</button>
                     <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')">🚑 Fall Detection</button>
+                    <button class="mode-btn" id="mode-plate-btn" onclick="setDetectionMode('plate')">🔢 License Plate</button>
                 </div>
             </div>
 
@@ -1408,6 +1411,19 @@
                     </div>
                     <div style="font-size: 0.62rem; color: var(--text-dim); margin-top: 6px; opacity: 0.75; line-height: 1.25;">
                         💡 Note: Alerts are routed to your developer inbox. Check your Spam folder for emails from <strong>onboarding@resend.dev</strong>.
+                    </div>
+                </div>
+
+                <!-- Target License Plate (used by License Plate mode) -->
+                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;">
+                    <div class="slider-label" style="margin-bottom: 6px;">Target License Plate</div>
+                    <div class="custom-input-row" style="margin: 0;">
+                        <input class="custom-input" id="target-plate-input" type="text"
+                               placeholder="e.g. ABC-1234" style="flex: 1; padding: 8px 10px; font-size: 0.75rem; text-transform: uppercase;">
+                        <button class="btn" style="padding: 0 14px; font-size: 0.75rem;" onclick="saveTargetPlate()">SAVE</button>
+                    </div>
+                    <div style="font-size: 0.62rem; color: var(--text-dim); margin-top: 6px; opacity: 0.75; line-height: 1.25;">
+                        💡 Note: OCR reads plates from the video feed — accuracy depends heavily on camera distance, angle, and resolution. Best with a close, front-facing view.
                     </div>
                 </div>
 
@@ -1881,6 +1897,20 @@
         let lastFallAlertState = false;
         let fallEmailsSentCount = 0;
 
+        // License Plate Detection mode (zone-gated vehicle detection + OCR match + email alerts)
+        let plateFrameCount = 0;
+        let plateOcrWorker = null;
+        let plateOcrLoading = false;
+        let plateOcrBusy = false;
+        let targetPlate = '';
+        let plateActive = false;
+        let lastPlateCheckTime = 0;
+        let lastDetectedPlateVehicles = []; // vehicles currently drawn (for overlay)
+        let lastPlateReadings = [];         // { bbox, text, isMatch } from the most recent OCR pass
+        let lastPlateMatchState = false;
+        let plateChecksRun = 0;
+        let plateEmailsSentCount = 0;
+
         // Recording state
         let isRecording = false;
         let mediaRecorder = null;
@@ -1914,6 +1944,7 @@
             const objectBtn = document.getElementById('mode-object-btn');
             const peopleBtn = document.getElementById('mode-people-btn');
             const fallBtn = document.getElementById('mode-fall-btn');
+            const plateBtn = document.getElementById('mode-plate-btn');
 
             // Toggle active styles
             floodBtn.classList.toggle('active', mode === 'flood');
@@ -1921,6 +1952,7 @@
             objectBtn.classList.toggle('active', mode === 'object');
             peopleBtn.classList.toggle('active', mode === 'people');
             fallBtn.classList.toggle('active', mode === 'fall');
+            plateBtn.classList.toggle('active', mode === 'plate');
 
             if (mode === 'flood') {
                 addAlert('🔄 Switched to Flood Detection Mode', 'info');
@@ -1945,7 +1977,7 @@
                 peopleFrameCount = 0;
                 peopleEmailsSentCount = 0;
                 updateColors(0, 0, 0, 0);
-            } else {
+            } else if (mode === 'fall') {
                 addAlert('🔄 Switched to Fall Detection Mode — initializing pose AI... Draw a zone to choose the detection area. Email alerts fire when someone appears to be lying down in it.', 'info');
                 loadPoseModel();
                 lastDetectedFallen = [];
@@ -1953,6 +1985,20 @@
                 lastFallAlertState = false;
                 fallFrameCount = 0;
                 fallEmailsSentCount = 0;
+                updateColors(0, 0, 0, 0);
+            } else {
+                const plateMsg = plateActive
+                    ? `🔄 Switched to License Plate Mode — initializing AI + OCR... Draw a zone. Watching for plate ${targetPlate}.`
+                    : '🔄 Switched to License Plate Mode — set a Target License Plate below to start watching for it.';
+                addAlert(plateMsg, 'info');
+                loadCocoModel();
+                loadPlateOcrWorker();
+                lastDetectedPlateVehicles = [];
+                lastPlateReadings = [];
+                lastPlateMatchState = false;
+                plateChecksRun = 0;
+                plateEmailsSentCount = 0;
+                lastPlateCheckTime = 0;
                 updateColors(0, 0, 0, 0);
             }
 
@@ -2000,7 +2046,7 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
                 document.getElementById('risk-label').textContent = 'CLEAR';
                 document.getElementById('risk-label').className = 'risk-label safe';
-            } else {
+            } else if (mode === 'fall') {
                 if (gaugeTitle) gaugeTitle.textContent = 'People Down';
                 if (gaugeUnit) gaugeUnit.textContent = 'COUNT';
                 if (mWaterLabel) mWaterLabel.textContent = 'Detected';
@@ -2008,6 +2054,15 @@
                 if (mChangeLabel) mChangeLabel.textContent = 'Emails Sent';
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
                 document.getElementById('risk-label').textContent = 'CLEAR';
+                document.getElementById('risk-label').className = 'risk-label safe';
+            } else {
+                if (gaugeTitle) gaugeTitle.textContent = 'Plate Match';
+                if (gaugeUnit) gaugeUnit.textContent = 'VEHICLES';
+                if (mWaterLabel) mWaterLabel.textContent = 'Last Read';
+                if (mReflectLabel) mReflectLabel.textContent = 'OCR Checks';
+                if (mChangeLabel) mChangeLabel.textContent = 'Emails Sent';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Target';
+                document.getElementById('risk-label').textContent = 'NO MATCH';
                 document.getElementById('risk-label').className = 'risk-label safe';
             }
 
@@ -2021,6 +2076,8 @@
                 updatePeopleMetrics([], peopleFrameCount);
             } else if (mode === 'fall') {
                 updateFallMetrics([], fallFrameCount);
+            } else if (mode === 'plate') {
+                updatePlateMetrics([], []);
             } else {
                 updateGauge(0);
                 updateMetrics(0, 0, 0, 0);
@@ -2592,6 +2649,13 @@
             if (detectionMode === 'fall') {
                 runFallDetectionFrame();
                 drawOverlay(null, Math.min(100, lastFallZoneCount * 50));
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
+            if (detectionMode === 'plate') {
+                runPlateDetectionFrame();
+                drawOverlay(null, Math.min(100, lastDetectedPlateVehicles.length * 25));
                 animId = requestAnimationFrame(analyzeLoop);
                 return;
             }
@@ -3226,6 +3290,163 @@
         }
 
         // ════════════════════════════════════════════════════════════════
+        //  LICENSE PLATE DETECTION ENGINE (vehicle detect + OCR + match)
+        // ════════════════════════════════════════════════════════════════
+        function waitForTesseractLibrary(timeoutMs = 15000) {
+            if (typeof Tesseract !== 'undefined') return Promise.resolve();
+            return new Promise((resolve, reject) => {
+                const start = Date.now();
+                const check = () => {
+                    if (typeof Tesseract !== 'undefined') return resolve();
+                    if (Date.now() - start > timeoutMs) return reject(new Error('Tesseract.js failed to load in time'));
+                    setTimeout(check, 100);
+                };
+                check();
+            });
+        }
+
+        async function loadPlateOcrWorker() {
+            if (plateOcrWorker || plateOcrLoading) return;
+            plateOcrLoading = true;
+            addAlert('🧠 Loading OCR engine for License Plate mode…', 'info');
+            try {
+                await waitForTesseractLibrary();
+                plateOcrWorker = await Tesseract.createWorker('eng');
+                await plateOcrWorker.setParameters({
+                    tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-'
+                });
+                addAlert('🧠 OCR engine ready.', 'safe');
+            } catch (err) {
+                console.error('Failed to load Tesseract OCR:', err);
+                addAlert('⚠️ OCR engine failed to load — License Plate mode unavailable.', 'warn');
+                plateOcrWorker = null;
+            } finally {
+                plateOcrLoading = false;
+            }
+        }
+
+        function updatePlateMetrics(vehiclesInZone, readings) {
+            const matched = readings.find(r => r.isMatch);
+            const lastRead = readings.length ? readings[readings.length - 1].text || '(blank)' : '—';
+
+            document.getElementById('m-water-pct').textContent = lastRead;
+            document.getElementById('m-reflect').textContent = plateChecksRun;
+            document.getElementById('m-change').textContent = plateEmailsSentCount;
+            document.getElementById('m-turbidity').textContent = targetPlate || 'not set';
+
+            document.getElementById('bar-water').style.width = (matched ? 100 : (readings.length ? 40 : 0)) + '%';
+            document.getElementById('bar-reflect').style.width = Math.min(100, plateChecksRun * 4) + '%';
+            document.getElementById('bar-change').style.width = Math.min(100, plateEmailsSentCount * 20) + '%';
+            document.getElementById('bar-turbid').style.width = plateActive ? '100%' : '0%';
+
+            const alertColor = matched ? 'var(--danger)' : 'var(--accent)';
+            document.getElementById('bar-water').style.background = alertColor;
+            document.getElementById('m-water-pct').style.color = alertColor;
+
+            const labelEl = document.getElementById('risk-label');
+            labelEl.textContent = matched ? 'MATCH!' : 'NO MATCH';
+            labelEl.className = 'risk-label ' + (matched ? 'critical' : 'safe');
+
+            const valueEl = document.getElementById('risk-value');
+            valueEl.textContent = vehiclesInZone.length;
+            valueEl.style.color = alertColor;
+            valueEl.style.textShadow = `0 0 20px ${alertColor}`;
+
+            const fill = document.getElementById('gauge-fill');
+            const circumference = 2 * Math.PI * 65;
+            const pct = Math.min(100, vehiclesInZone.length * 25);
+            fill.style.strokeDashoffset = circumference - (pct / 100) * circumference;
+            fill.style.stroke = alertColor;
+            fill.style.filter = `drop-shadow(0 0 8px ${alertColor})`;
+        }
+
+        // Vehicle boxes refresh at the usual cheap cadence (coco-ssd, every 5th
+        // frame). OCR is far more expensive than any other model in this app, so
+        // it runs on its own slower, time-based throttle with a busy-guard —
+        // frame-count throttling like the other modes would overwhelm the CPU.
+        async function runPlateDetectionFrame() {
+            if (!cocoModel) return;
+
+            plateFrameCount++;
+            if (plateFrameCount % 5 === 0) {
+                try {
+                    const predictions = await cocoModel.detect(video);
+                    const vehicles = predictions.filter(p =>
+                        ['car', 'truck', 'bus', 'motorcycle'].includes(p.class) && p.score > 0.4
+                    );
+                    const vWidth = video.videoWidth, vHeight = video.videoHeight;
+                    lastDetectedPlateVehicles = vehicles.filter(p => {
+                        const [bx, by, bw, bh] = p.bbox;
+                        const cx = (bx + bw / 2) / vWidth;
+                        const cyFoot = (by + bh) / vHeight;
+                        const cyMid = (by + bh / 2) / vHeight;
+                        return pointInPolygon(cx, cyFoot, zonePoints) || pointInPolygon(cx, cyMid, zonePoints);
+                    });
+                } catch (e) {
+                    console.error('Plate mode vehicle detection error:', e);
+                }
+            }
+
+            updatePlateMetrics(lastDetectedPlateVehicles, lastPlateReadings);
+
+            if (!plateActive || !plateOcrWorker || plateOcrBusy) return;
+            if (lastDetectedPlateVehicles.length === 0) return;
+
+            const now = Date.now();
+            if (now - lastPlateCheckTime < 2500) return;
+
+            lastPlateCheckTime = now;
+            plateOcrBusy = true;
+
+            try {
+                const readings = [];
+                const candidates = lastDetectedPlateVehicles.slice(0, 3);
+
+                for (const veh of candidates) {
+                    const [bx, by, bw, bh] = veh.bbox;
+                    if (bw < 20 || bh < 20) continue;
+
+                    const cropCanvas = document.createElement('canvas');
+                    const scale = Math.min(4, 400 / bw);
+                    cropCanvas.width = Math.max(1, Math.round(bw * scale));
+                    cropCanvas.height = Math.max(1, Math.round(bh * scale));
+                    const cctx = cropCanvas.getContext('2d');
+                    cctx.drawImage(video, bx, by, bw, bh, 0, 0, cropCanvas.width, cropCanvas.height);
+
+                    const { data } = await plateOcrWorker.recognize(cropCanvas);
+                    const text = normalizePlate(data.text);
+                    const isMatch = text.length >= 3 && text.includes(targetPlate);
+                    readings.push({ bbox: veh.bbox, text: (data.text || '').trim(), isMatch });
+                }
+
+                lastPlateReadings = readings;
+                plateChecksRun++;
+
+                const matched = readings.some(r => r.isMatch);
+                if (matched !== lastPlateMatchState) {
+                    lastPlateMatchState = matched;
+                    if (matched) {
+                        const hit = readings.find(r => r.isMatch);
+                        addAlert(`🚨 TARGET PLATE MATCHED: "${hit.text}" (watching for ${targetPlate})`, 'danger');
+                    } else {
+                        addAlert('✅ No plate match in current zone', 'safe');
+                    }
+                }
+
+                if (matched) {
+                    const sent = await triggerNotification(100, `PLATE MATCH: ${targetPlate}`);
+                    if (sent) plateEmailsSentCount++;
+                }
+
+                updatePlateMetrics(lastDetectedPlateVehicles, lastPlateReadings);
+            } catch (e) {
+                console.error('Plate OCR error:', e);
+            } finally {
+                plateOcrBusy = false;
+            }
+        }
+
+        // ════════════════════════════════════════════════════════════════
         //  OVERLAY DRAWING
         // ════════════════════════════════════════════════════════════════
         function drawOverlay(zone, risk) {
@@ -3308,7 +3529,9 @@
                     ? `OBJECT DETECTION · ${lastObjectZoneCount} IN ZONE`
                     : detectionMode === 'people'
                     ? `PEOPLE DETECTION · ${lastPeopleZoneCount} IN ZONE`
-                    : `FALL DETECTION · ${lastFallZoneCount} DOWN`;
+                    : detectionMode === 'fall'
+                    ? `FALL DETECTION · ${lastFallZoneCount} DOWN`
+                    : `LICENSE PLATE · ${lastDetectedPlateVehicles.length} VEHICLE(S)`;
                 const lx = pts[0].x, ly = pts[0].y;
                 octx.font = 'bold 11px Orbitron, monospace';
                 const tw = octx.measureText(labelText).width;
@@ -3454,6 +3677,33 @@
 
                     octx.fillStyle = '#ffffff';
                     octx.fillText(tag, cx + 5, cy - 6);
+                });
+            } else if (detectionMode === 'plate' && cocoModel && lastDetectedPlateVehicles.length > 0) {
+                const scaleX = cw / video.videoWidth;
+                const scaleY = ch / video.videoHeight;
+
+                lastDetectedPlateVehicles.forEach((veh, i) => {
+                    const [bx, by, bw, bh] = veh.bbox;
+                    const cx = bx * scaleX, cy = by * scaleY, cwid = bw * scaleX, chei = bh * scaleY;
+
+                    const reading = lastPlateReadings[i];
+                    const isMatch = reading && reading.isMatch;
+                    const color = isMatch ? 'rgba(0, 229, 160, 0.95)' : 'rgba(0, 200, 255, 0.85)';
+
+                    octx.strokeStyle = color;
+                    octx.lineWidth = isMatch ? 3.5 : 2.5;
+                    octx.strokeRect(cx, cy, cwid, chei);
+
+                    const tag = reading
+                        ? `${reading.text || '(unreadable)'}${isMatch ? ' ✓ MATCH' : ''}`
+                        : `${veh.class.toUpperCase()} ${Math.round(veh.score * 100)}%`;
+                    octx.fillStyle = color;
+                    octx.font = "bold 10px Orbitron, monospace";
+                    const tagW = octx.measureText(tag).width;
+                    octx.fillRect(cx, cy - 18, tagW + 10, 18);
+
+                    octx.fillStyle = '#ffffff';
+                    octx.fillText(tag, cx + 5, cy - 5);
                 });
             }
         }
@@ -3781,6 +4031,39 @@
             });
         }
 
+        // Strip everything but letters/digits and uppercase, so OCR noise
+        // (dashes, spaces, misread punctuation) doesn't block a real match.
+        function normalizePlate(str) {
+            return (str || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        }
+
+        function saveTargetPlate() {
+            const raw = document.getElementById('target-plate-input').value.trim();
+            if (!raw) {
+                plateActive = false;
+                targetPlate = '';
+                localStorage.removeItem('target_plate');
+                addAlert('License plate target cleared', 'info');
+                return;
+            }
+            targetPlate = normalizePlate(raw);
+            plateActive = targetPlate.length >= 3;
+            if (!plateActive) {
+                addAlert('⚠️ Plate number looks too short — please double-check', 'warn');
+                return;
+            }
+            document.getElementById('target-plate-input').value = raw.toUpperCase();
+            localStorage.setItem('target_plate', raw.toUpperCase());
+            addAlert(`🔢 Target plate set: ${targetPlate}`, 'safe');
+        }
+
+        function loadTargetPlateSettings() {
+            const saved = localStorage.getItem('target_plate') || '';
+            document.getElementById('target-plate-input').value = saved;
+            targetPlate = normalizePlate(saved);
+            plateActive = targetPlate.length >= 3;
+        }
+
         async function triggerNotification(riskScore, level) {
             if (!notifActive || !subscriberEmail) return false;
 
@@ -3797,7 +4080,8 @@
             const labelMode = detectionMode === 'flood' ? 'flood'
                 : detectionMode === 'parking' ? 'parking watch'
                 : detectionMode === 'people' ? 'people detection'
-                : 'fall detection';
+                : detectionMode === 'fall' ? 'fall detection'
+                : 'license plate';
             addAlert(`🚀 Requesting ${labelMode} alert email notification…`, 'info');
 
             let snapshotBase64 = null;
@@ -4011,6 +4295,7 @@
         //  INIT
         // ════════════════════════════════════════════════════════════════
         loadSubscriptionSettings();
+        loadTargetPlateSettings();
         // Defer feedback modal init until DOM is fully parsed (modal HTML is below this script)
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initFeedbackModal);
