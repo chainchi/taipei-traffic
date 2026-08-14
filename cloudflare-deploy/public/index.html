@@ -1534,7 +1534,7 @@
                         <div class="zone-btn-icon" id="zone-icon">✓</div>
                         <div>
                             <div class="zone-btn-text">Road Surface ROI</div>
-                            <div class="zone-btn-sub">Drag vertices · click video to redraw polygon</div>
+                            <div class="zone-btn-sub">Drag a corner to resize · drag inside the zone to move it</div>
                         </div>
                     </div>
                     <button class="baseline-btn" onclick="resetZonePolygon()" style="margin-top:6px;width:100%">✏️ Reset &amp; Redraw Polygon</button>
@@ -1890,7 +1890,15 @@
         let zoneClosed = true;  // polygon is closed
         let draggingVertex = -1;
         let hoverVertex = -1;
-        const VERTEX_HIT_RADIUS = 18; // px on canvas
+        let draggingWholeZone = false;
+        let wholeZoneDragStart = null;      // normalized pointer-down position
+        let wholeZoneDragOrigPoints = null; // zonePoints snapshot at drag start
+        // Touch/hit sizing is expressed in real screen (CSS) pixels, then
+        // converted to canvas-space via canvasScale() at use time — a fixed
+        // canvas-px radius shrinks to nearly nothing when a high-res camera
+        // feed (e.g. 1920x1080) is displayed small on a phone screen, which
+        // is exactly why corner handles were reported as too small to touch.
+        const VERTEX_HIT_RADIUS_CSS = 26; // px on screen, regardless of source resolution
 
         // Baseline
         let baselineData = null;  // ImageData of dry reference
@@ -2517,12 +2525,44 @@
         function absPt(n) { return { x: n.x * zoneCanvas.width, y: n.y * zoneCanvas.height }; }
         function ptDist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
+        // Canvas pixels are the source video's native resolution, which can
+        // be much higher than the on-screen display size (especially on a
+        // phone) — this converts a real screen-pixel size into the matching
+        // canvas-space size so touch targets stay a consistent physical size
+        // no matter the camera's resolution.
+        function canvasScale() {
+            const r = zoneCanvas.getBoundingClientRect();
+            return r.width > 0 ? zoneCanvas.width / r.width : 1;
+        }
+        function hitRadiusPx() { return VERTEX_HIT_RADIUS_CSS * canvasScale(); }
+
         function nearVertex(cp) {
+            const hr = hitRadiusPx();
             for (let i = 0; i < zonePoints.length; i++) {
                 const ap = absPt(zonePoints[i]);
-                if (ptDist(cp, ap) < VERTEX_HIT_RADIUS) return i;
+                if (ptDist(cp, ap) < hr) return i;
             }
             return -1;
+        }
+
+        // Distance from point p to segment a-b — used to detect a touch/click
+        // landing on a polygon edge (its "side"), not just its corners.
+        function distToSegment(p, a, b) {
+            const dx = b.x - a.x, dy = b.y - a.y;
+            const lenSq = dx * dx + dy * dy;
+            let t = lenSq > 0 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq : 0;
+            t = Math.max(0, Math.min(1, t));
+            return ptDist(p, { x: a.x + t * dx, y: a.y + t * dy });
+        }
+
+        function nearEdge(cp) {
+            const hr = hitRadiusPx();
+            const pts = zonePoints.map(absPt);
+            for (let i = 0; i < pts.length; i++) {
+                const a = pts[i], b = pts[(i + 1) % pts.length];
+                if (distToSegment(cp, a, b) < hr) return true;
+            }
+            return false;
         }
 
         zoneCanvas.addEventListener('pointerdown', e => {
@@ -2531,8 +2571,17 @@
             const cp = canvasPoint(e);
 
             if (zoneClosed) {
-                // Editing mode: drag a vertex
+                // Editing mode: drag a vertex to resize, or grab an edge/the
+                // zone body to move the whole polygon at once.
                 draggingVertex = nearVertex(cp);
+                if (draggingVertex === -1) {
+                    const npt = normPt(cp);
+                    if (nearEdge(cp) || pointInPolygon(npt.x, npt.y, zonePoints)) {
+                        draggingWholeZone = true;
+                        wholeZoneDragStart = npt;
+                        wholeZoneDragOrigPoints = zonePoints.map(p => ({ x: p.x, y: p.y }));
+                    }
+                }
             } else {
                 // Drawing mode: dragging is handled on click, not drag
                 draggingVertex = -1;
@@ -2545,15 +2594,34 @@
 
             if (draggingVertex >= 0) {
                 zonePoints[draggingVertex] = normPt(cp);
+            } else if (draggingWholeZone) {
+                const npt = normPt(cp);
+                let dx = npt.x - wholeZoneDragStart.x;
+                let dy = npt.y - wholeZoneDragStart.y;
+                // Clamp so the whole shape stays on-canvas without distorting it.
+                const xs = wholeZoneDragOrigPoints.map(p => p.x);
+                const ys = wholeZoneDragOrigPoints.map(p => p.y);
+                dx = Math.max(-Math.min(...xs), Math.min(1 - Math.max(...xs), dx));
+                dy = Math.max(-Math.min(...ys), Math.min(1 - Math.max(...ys), dy));
+                zonePoints = wholeZoneDragOrigPoints.map(p => ({ x: p.x + dx, y: p.y + dy }));
             } else {
-                // Hover highlight
+                // Hover highlight / cursor affordance
                 hoverVertex = zoneClosed ? nearVertex(cp) : -1;
+                if (zoneClosed) {
+                    const npt = normPt(cp);
+                    zoneCanvas.style.cursor = hoverVertex >= 0
+                        ? 'pointer'
+                        : (nearEdge(cp) || pointInPolygon(npt.x, npt.y, zonePoints)) ? 'move' : 'crosshair';
+                }
             }
         });
 
         zoneCanvas.addEventListener('pointerup', e => {
-            if (draggingVertex >= 0) {
+            if (draggingVertex >= 0 || draggingWholeZone) {
                 draggingVertex = -1;
+                draggingWholeZone = false;
+                wholeZoneDragStart = null;
+                wholeZoneDragOrigPoints = null;
                 if (detectionMode === 'parking') {
                     baselineData = null; stationaryFrames = 0; smoothedRisk = 0;
                     addAlert('📐 Zone updated — re-capturing baseline in 5s… keep space empty', 'info');
@@ -2573,7 +2641,7 @@
             // If near first point and have ≥3 points → close polygon
             if (zonePoints.length >= 3) {
                 const firstAbs = absPt(zonePoints[0]);
-                if (ptDist(cp, firstAbs) < VERTEX_HIT_RADIUS) {
+                if (ptDist(cp, firstAbs) < hitRadiusPx()) {
                     zoneClosed = true;
                     onZoneComplete();
                     return;
@@ -2593,7 +2661,7 @@
         });
 
         function onZoneComplete() {
-            addAlert('✏️ Polygon zone set — drag vertices to adjust', 'info');
+            addAlert('✏️ Polygon zone set — drag a corner to resize, or drag inside it to move the whole zone', 'info');
             if (detectionMode === 'parking') {
                 baselineData = null; stationaryFrames = 0; smoothedRisk = 0;
                 addAlert('📐 Zone updated — re-capturing baseline in 5s… keep space empty', 'info');
@@ -3703,12 +3771,17 @@
             octx.restore();
 
             // ── Vertex handles ──
+            // Dot sizes scale with canvasScale() so they read as a consistent
+            // physical size on screen no matter the source video's resolution
+            // (a fixed canvas-px radius shrinks to a pinprick on a phone
+            // showing a 1080p feed otherwise).
+            const cScale = canvasScale();
             pts.forEach((p, i) => {
                 const isHover = i === hoverVertex;
                 const isDrag  = i === draggingVertex;
                 octx.save();
                 octx.beginPath();
-                octx.arc(p.x, p.y, isDrag ? 9 : isHover ? 8 : 5, 0, Math.PI * 2);
+                octx.arc(p.x, p.y, (isDrag ? 12 : isHover ? 10 : 7) * cScale, 0, Math.PI * 2);
                 octx.fillStyle = isDrag ? '#fff' : isHover ? 'rgba(255,255,255,0.9)' : 'rgba(130,220,255,0.75)';
                 octx.shadowBlur = 8;
                 octx.shadowColor = ZONE_COLOR;
@@ -3722,7 +3795,7 @@
                 if (i === 0 && !zoneClosed && zonePoints.length >= 3) {
                     octx.save();
                     octx.beginPath();
-                    octx.arc(p.x, p.y, VERTEX_HIT_RADIUS, 0, Math.PI * 2);
+                    octx.arc(p.x, p.y, hitRadiusPx(), 0, Math.PI * 2);
                     octx.strokeStyle = 'rgba(130,220,255,0.3)';
                     octx.lineWidth = 1;
                     octx.setLineDash([3,3]);
