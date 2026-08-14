@@ -1192,13 +1192,22 @@
             display: block !important;
         }
 
-        /* Video-only mode rules */
+        /* Video-only mode — double-tap/double-click the video to toggle.
+           Hides everything but the video itself so it fills the screen;
+           double-tap again to restore the normal layout. */
         body.video-only-mode .sidebar {
             display: none !important;
         }
         @media (max-width: 768px) {
+            body.video-only-mode {
+                overflow: hidden !important;
+            }
+            body.video-only-mode .topbar,
+            body.video-only-mode .mode-bar {
+                display: none !important;
+            }
             body.video-only-mode .video-section {
-                height: calc(100vh - 48px) !important;
+                height: 100vh !important;
             }
         }
 
@@ -2664,11 +2673,16 @@
         });
 
         zoneCanvas.addEventListener('dblclick', e => {
-            if (!zoneEnabled) return;
-            if (!zoneClosed && zonePoints.length >= 3) {
+            // While actively drawing a new zone, double-click/double-tap
+            // closes the polygon (existing behavior takes priority). Any
+            // other time — including zone editing disabled — it toggles
+            // the full-screen video view instead.
+            if (zoneEnabled && !zoneClosed && zonePoints.length >= 3) {
                 zoneClosed = true;
                 onZoneComplete();
+                return;
             }
+            toggleVideoFullscreenFit();
         });
 
         function onZoneComplete() {
@@ -2694,6 +2708,14 @@
             zoneEnabled = !zoneEnabled;
             document.getElementById('zone-icon').textContent = zoneEnabled ? '✓' : '';
             document.getElementById('zone-toggle-btn').classList.toggle('active', zoneEnabled);
+        }
+
+        // Double-tap/double-click the video to fill the screen with it (sidebar,
+        // topbar and mode bar hidden on mobile), double-tap again to restore.
+        function toggleVideoFullscreenFit() {
+            const isFullscreenFit = document.body.classList.toggle('video-only-mode');
+            addAlert(isFullscreenFit ? '🖥️ Full-screen view — double-tap the video again to exit' : 'Exited full-screen view', 'info');
+            requestAnimationFrame(syncCanvasSize);
         }
 
         // ════════════════════════════════════════════════════════════════
