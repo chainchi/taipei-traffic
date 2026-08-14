@@ -128,6 +128,30 @@
             white-space: nowrap;
         }
 
+        .visitor-counter {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.62rem;
+            color: var(--text-dim);
+            letter-spacing: 0.5px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.03);
+            padding: 4px 10px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .visitor-counter-icon {
+            font-size: 0.72rem;
+            opacity: 0.8;
+        }
+        #visitor-count-value {
+            font-family: var(--display);
+            color: var(--accent);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
         .made-with-banner a {
             color: var(--accent);
             text-decoration: none;
@@ -1350,6 +1374,10 @@
             <div class="topbar-title">VISION<span>WATCH</span></div>
         </div>
         <div class="topbar-right" style="gap: 12px;">
+            <div class="visitor-counter" id="visitor-counter" title="Total page visits">
+                <span class="visitor-counter-icon">👁</span>
+                <span id="visitor-count-value">—</span>
+            </div>
             <div class="made-with-banner">
                 Made with <span class="heart">❤️</span> by
                 <a href="https://chichijpshop.blogspot.com/2026/08/ai-visionwatch-ai-ai.html" target="_blank" rel="noopener">chichi的分享天空</a>
@@ -4711,12 +4739,32 @@
             }
         }
 
+        // Free, no-auth hit counter (abacus.jasoncameron.dev) — increments and
+        // returns the new total in one call. No backend of our own needed.
+        // Fails silently (hides the pill) if the third-party service is ever
+        // down, rather than blocking anything else on the page.
+        async function loadVisitorCounter() {
+            const valueEl = document.getElementById('visitor-count-value');
+            const pillEl = document.getElementById('visitor-counter');
+            if (!valueEl) return;
+            try {
+                const resp = await fetch('https://abacus.jasoncameron.dev/hit/visionwatch-ai/page-visits', { cache: 'no-store' });
+                if (!resp.ok) throw new Error(`bad response: ${resp.status}`);
+                const data = await resp.json();
+                valueEl.textContent = Number(data.value || 0).toLocaleString();
+            } catch (e) {
+                console.error('Visitor counter unavailable:', e);
+                if (pillEl) pillEl.style.display = 'none';
+            }
+        }
+
         // ════════════════════════════════════════════════════════════════
         //  INIT
         // ════════════════════════════════════════════════════════════════
         loadSubscriptionSettings();
         loadTargetPlateSettings();
         updateModeVisibility(detectionMode);
+        loadVisitorCounter();
         // Defer feedback modal init until DOM is fully parsed (modal HTML is below this script)
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initFeedbackModal);
