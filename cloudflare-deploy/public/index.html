@@ -3853,12 +3853,12 @@
                         ? `${reading.text || '(unreadable)'}${isMatch ? ' ✓ MATCH' : ''}`
                         : `PLATE ${Math.round(det.score * 100)}%`;
                     octx.fillStyle = color;
-                    octx.font = "bold 10px Orbitron, monospace";
+                    octx.font = "bold 18px Orbitron, monospace";
                     const tagW = octx.measureText(tag).width;
-                    octx.fillRect(px, py - 18, tagW + 10, 18);
+                    octx.fillRect(px, py - 28, tagW + 14, 28);
 
                     octx.fillStyle = '#ffffff';
-                    octx.fillText(tag, px + 5, py - 5);
+                    octx.fillText(tag, px + 7, py - 8);
                 });
             }
         }
