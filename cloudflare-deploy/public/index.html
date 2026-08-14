@@ -1907,6 +1907,14 @@
         let draggingWholeZone = false;
         let wholeZoneDragStart = null;      // normalized pointer-down position
         let wholeZoneDragOrigPoints = null; // zonePoints snapshot at drag start
+        // Manual double-tap detection — real mobile browsers don't reliably
+        // synthesize a native 'dblclick' DOM event from two quick taps, so
+        // double-tap-to-fullscreen is detected by hand from raw pointer taps
+        // (works for mouse double-clicks too, so 'dblclick' itself is unused).
+        let pointerDownPos = null;
+        let lastTapTime = 0;
+        let lastTapPt = null;
+        const DOUBLE_TAP_WINDOW_MS = 400;
         // Touch/hit sizing is expressed in real screen (CSS) pixels, then
         // converted to canvas-space via canvasScale() at use time — a fixed
         // canvas-px radius shrinks to nearly nothing when a high-res camera
@@ -2580,14 +2588,17 @@
         }
 
         zoneCanvas.addEventListener('pointerdown', e => {
-            if (!zoneEnabled) return;
             // Backstop alongside touch-action:none above — belt-and-suspenders
             // against iOS Safari starting its own page-pan gesture from this
             // same touch, which is what made the whole window drift while
-            // reshaping the zone.
+            // reshaping the zone. Tracked unconditionally (even with zone
+            // editing switched off) so double-tap-to-fullscreen still works.
             e.preventDefault();
             zoneCanvas.setPointerCapture(e.pointerId);
             const cp = canvasPoint(e);
+            pointerDownPos = cp;
+
+            if (!zoneEnabled) return;
 
             if (zoneClosed) {
                 // Editing mode: drag a vertex to resize, or grab an edge/the
@@ -2637,17 +2648,37 @@
         });
 
         zoneCanvas.addEventListener('pointerup', e => {
+            const cp = canvasPoint(e);
+            const movedDist = pointerDownPos ? ptDist(pointerDownPos, cp) : Infinity;
+            const wasRealDrag = (draggingVertex >= 0 || draggingWholeZone) && movedDist >= hitRadiusPx();
+
             if (draggingVertex >= 0 || draggingWholeZone) {
                 draggingVertex = -1;
                 draggingWholeZone = false;
                 wholeZoneDragStart = null;
                 wholeZoneDragOrigPoints = null;
-                if (detectionMode === 'parking') {
-                    baselineData = null; stationaryFrames = 0; smoothedRisk = 0;
-                    addAlert('📐 Zone updated — re-capturing baseline in 5s… keep space empty', 'info');
-                    scheduleAutoBaseline();
+                if (wasRealDrag) {
+                    if (detectionMode === 'parking') {
+                        baselineData = null; stationaryFrames = 0; smoothedRisk = 0;
+                        addAlert('📐 Zone updated — re-capturing baseline in 5s… keep space empty', 'info');
+                        scheduleAutoBaseline();
+                    } else {
+                        addAlert('Monitoring zone updated', 'info');
+                    }
+                }
+            }
+
+            // A tap is a pointer down/up pair with barely any movement — as
+            // opposed to a drag, which resizes/moves the zone above instead.
+            if (movedDist < hitRadiusPx()) {
+                const now = Date.now();
+                if (lastTapPt && (now - lastTapTime) < DOUBLE_TAP_WINDOW_MS && ptDist(lastTapPt, cp) < hitRadiusPx() * 2) {
+                    lastTapTime = 0;
+                    lastTapPt = null;
+                    handleVideoDoubleTap();
                 } else {
-                    addAlert('Monitoring zone updated', 'info');
+                    lastTapTime = now;
+                    lastTapPt = cp;
                 }
             }
         });
@@ -2672,18 +2703,10 @@
             }
         });
 
-        zoneCanvas.addEventListener('dblclick', e => {
-            // While actively drawing a new zone, double-click/double-tap
-            // closes the polygon (existing behavior takes priority). Any
-            // other time — including zone editing disabled — it toggles
-            // the full-screen video view instead.
-            if (zoneEnabled && !zoneClosed && zonePoints.length >= 3) {
-                zoneClosed = true;
-                onZoneComplete();
-                return;
-            }
-            toggleVideoFullscreenFit();
-        });
+        // Kept as a fallback for desktop mice, where native dblclick is fully
+        // reliable — handleVideoDoubleTap() below is debounced so this can't
+        // double-fire alongside the manual pointerup-based tap detector.
+        zoneCanvas.addEventListener('dblclick', e => handleVideoDoubleTap());
 
         function onZoneComplete() {
             addAlert('✏️ Polygon zone set — drag a corner to resize, or drag inside it to move the whole zone', 'info');
@@ -2716,6 +2739,26 @@
             const isFullscreenFit = document.body.classList.toggle('video-only-mode');
             addAlert(isFullscreenFit ? '🖥️ Full-screen view — double-tap the video again to exit' : 'Exited full-screen view', 'info');
             requestAnimationFrame(syncCanvasSize);
+        }
+
+        // Shared by the manual tap-based detector and the native 'dblclick'
+        // fallback — debounced so a device that fires both for one physical
+        // gesture doesn't toggle fullscreen on and immediately back off.
+        let lastDoubleTapActionTime = 0;
+        function handleVideoDoubleTap() {
+            const now = Date.now();
+            if (now - lastDoubleTapActionTime < 250) return;
+            lastDoubleTapActionTime = now;
+
+            // While actively drawing a new zone, double-tap closes the
+            // polygon (existing behavior takes priority). Any other time —
+            // including zone editing disabled — it toggles full-screen.
+            if (zoneEnabled && !zoneClosed && zonePoints.length >= 3) {
+                zoneClosed = true;
+                onZoneComplete();
+                return;
+            }
+            toggleVideoFullscreenFit();
         }
 
         // ════════════════════════════════════════════════════════════════
