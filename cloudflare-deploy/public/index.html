@@ -3529,11 +3529,6 @@
                     return pointInPolygon(cx, cyFoot, zonePoints) || pointInPolygon(cx, cyMid, zonePoints);
                 });
 
-                if (!plateActive) {
-                    updatePlateMetrics(lastDetectedPlateVehicles, lastPlateReadings);
-                    return;
-                }
-
                 const readings = [];
                 const candidates = lastDetectedPlateVehicles.slice(0, 3);
 
@@ -3567,27 +3562,32 @@
                     const { data } = await plateOcrWorker.recognize(fineCanvas);
 
                     const text = normalizePlate(data.text);
-                    const isMatch = text.length >= 3 && plateFuzzyMatches(text, targetPlate);
+                    const isMatch = plateActive && text.length >= 3 && plateFuzzyMatches(text, targetPlate);
                     readings.push({ bbox: det.bbox, plateRegion: plate, text: (data.text || '').trim(), isMatch, detectorScore: det.score });
                 }
 
                 lastPlateReadings = readings;
                 plateChecksRun++;
 
-                const matched = readings.some(r => r.isMatch);
-                if (matched !== lastPlateMatchState) {
-                    lastPlateMatchState = matched;
-                    if (matched) {
-                        const hit = readings.find(r => r.isMatch);
-                        addAlert(`🚨 TARGET PLATE MATCHED: "${hit.text}" (watching for ${targetPlate})`, 'danger');
-                    } else {
-                        addAlert('✅ No plate match in current zone', 'safe');
+                // Match/alert/email logic only applies once a target plate is
+                // actually being watched for — without one, readings are just
+                // displayed on the boxes with nothing to compare against.
+                if (plateActive) {
+                    const matched = readings.some(r => r.isMatch);
+                    if (matched !== lastPlateMatchState) {
+                        lastPlateMatchState = matched;
+                        if (matched) {
+                            const hit = readings.find(r => r.isMatch);
+                            addAlert(`🚨 TARGET PLATE MATCHED: "${hit.text}" (watching for ${targetPlate})`, 'danger');
+                        } else {
+                            addAlert('✅ No plate match in current zone', 'safe');
+                        }
                     }
-                }
 
-                if (matched) {
-                    const sent = await triggerNotification(100, `PLATE MATCH: ${targetPlate}`);
-                    if (sent) plateEmailsSentCount++;
+                    if (matched) {
+                        const sent = await triggerNotification(100, `PLATE MATCH: ${targetPlate}`);
+                        if (sent) plateEmailsSentCount++;
+                    }
                 }
 
                 updatePlateMetrics(lastDetectedPlateVehicles, lastPlateReadings);
