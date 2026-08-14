@@ -270,6 +270,11 @@
             height: 100%;
             z-index: 6;
             cursor: crosshair;
+            /* Without this, iOS Safari treats a finger-drag on this canvas as
+               a page scroll/pan gesture at the same time as our own drag
+               logic runs, so the whole window moves under the user's thumb
+               while they're trying to reshape the zone. */
+            touch-action: none;
         }
 
         #no-signal-canvas {
@@ -2567,6 +2572,11 @@
 
         zoneCanvas.addEventListener('pointerdown', e => {
             if (!zoneEnabled) return;
+            // Backstop alongside touch-action:none above — belt-and-suspenders
+            // against iOS Safari starting its own page-pan gesture from this
+            // same touch, which is what made the whole window drift while
+            // reshaping the zone.
+            e.preventDefault();
             zoneCanvas.setPointerCapture(e.pointerId);
             const cp = canvasPoint(e);
 
@@ -2590,6 +2600,7 @@
 
         zoneCanvas.addEventListener('pointermove', e => {
             if (!zoneEnabled) return;
+            if (draggingVertex >= 0 || draggingWholeZone) e.preventDefault();
             const cp = canvasPoint(e);
 
             if (draggingVertex >= 0) {
