@@ -184,6 +184,12 @@
             border-bottom: 1px solid var(--border);
         }
 
+        /* Caption showing the active mode's full name — only surfaces on
+           mobile, where the mode buttons themselves collapse to icons. */
+        .mode-active-caption {
+            display: none;
+        }
+
         /* Status pills (live badge, camera name/location) — downsized and
            moved into the bottom bar alongside FPS/Analysis/REC. */
         .live-badge {
@@ -1071,13 +1077,41 @@
                 min-height: 180px;
             }
 
-            /* Mode bar: smaller buttons so more fit per row before wrapping */
+            /* Mode bar: collapses to a horizontally-scrolling row of icon-only
+               chips instead of wrapping to 2-3 lines of text. Keeps the bar's
+               height fixed as more services get added — new modes just add
+               another chip to scroll to, never push the video down. */
             .mode-bar {
                 padding: 8px 12px;
             }
+            .mode-selector {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding-bottom: 2px;
+            }
+            .mode-selector::-webkit-scrollbar {
+                display: none;
+            }
             .mode-btn {
-                padding: 5px 9px;
+                flex: 0 0 auto;
+                padding: 7px 10px;
                 font-size: 0.64rem;
+            }
+            .mode-btn .mode-icon {
+                font-size: 1rem;
+            }
+            .mode-btn .mode-label {
+                display: none;
+            }
+            .mode-active-caption {
+                display: block;
+                margin-top: 6px;
+                font-size: 0.68rem;
+                font-weight: 600;
+                color: var(--accent);
+                letter-spacing: 0.3px;
             }
 
             /* Sidebar becomes a normal full-width panel below the video —
@@ -1318,13 +1352,14 @@
         <div class="video-section" id="video-section">
             <div class="mode-bar">
                 <div class="mode-selector">
-                    <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')">🌊 Flood Detection</button>
-                    <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')">🚗 Parking Watch</button>
-                    <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')">🔍 Object Detection</button>
-                    <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')">👤 People Detection</button>
-                    <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')">🚑 Fall Detection</button>
-                    <button class="mode-btn" id="mode-plate-btn" onclick="setDetectionMode('plate')">🔢 License Plate</button>
+                    <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')" title="Flood Detection"><span class="mode-icon">🌊</span><span class="mode-label"> Flood Detection</span></button>
+                    <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')" title="Parking Watch"><span class="mode-icon">🚗</span><span class="mode-label"> Parking Watch</span></button>
+                    <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')" title="Object Detection"><span class="mode-icon">🔍</span><span class="mode-label"> Object Detection</span></button>
+                    <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')" title="People Detection"><span class="mode-icon">👤</span><span class="mode-label"> People Detection</span></button>
+                    <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')" title="Fall Detection"><span class="mode-icon">🚑</span><span class="mode-label"> Fall Detection</span></button>
+                    <button class="mode-btn" id="mode-plate-btn" onclick="setDetectionMode('plate')" title="License Plate"><span class="mode-icon">🔢</span><span class="mode-label"> License Plate</span></button>
                 </div>
+                <div class="mode-active-caption" id="mode-active-caption">🌊 Flood Detection</div>
             </div>
 
             <div class="video-container">
@@ -1383,8 +1418,10 @@
                     </div>
                 </div>
 
-                <!-- Sensitivity Slider -->
-                <div class="slider-row" style="margin-top: 14px; padding: 4px 0;">
+                <!-- Sensitivity Slider — only affects the pixel/color-based
+                     risk modes (Flood, Parking); no effect on the fixed-
+                     confidence AI modes, so hidden there to reduce clutter. -->
+                <div class="slider-row" style="margin-top: 14px; padding: 4px 0;" data-modes="flood,parking">
                     <div class="slider-label">Sensitivity</div>
                     <input type="range" class="slider" id="sensitivity" min="1" max="10" value="5">
                     <div class="slider-val" id="sens-val">5</div>
@@ -1401,8 +1438,9 @@
                     <button class="btn btn-webcam" onclick="loadWebcam()" style="width: 100%; margin-top: 8px;">📷 Use Local Webcam</button>
                 </div>
 
-                <!-- Email Alerts Subscription Row -->
-                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;">
+                <!-- Email Alerts Subscription Row — every mode except Object
+                     Detection can trigger an email alert. -->
+                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;" data-modes="flood,parking,people,fall,plate">
                     <div class="slider-label" style="margin-bottom: 6px;">Email Alerts Subscription</div>
                     <div class="custom-input-row" style="margin: 0;">
                         <input class="custom-input" id="subscriber-email-input" type="email"
@@ -1414,8 +1452,8 @@
                     </div>
                 </div>
 
-                <!-- Target License Plate (used by License Plate mode) -->
-                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;">
+                <!-- Target License Plate — only relevant in License Plate mode -->
+                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;" data-modes="plate">
                     <div class="slider-label" style="margin-bottom: 6px;">Target License Plate</div>
                     <div class="custom-input-row" style="margin: 0;">
                         <input class="custom-input" id="target-plate-input" type="text"
@@ -1458,9 +1496,9 @@
                     </div>
                 </div>
 
-                <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); margin: 14px 0 10px 0;"></div>
+                <div style="border-top: 1px solid rgba(255, 255, 255, 0.05); margin: 14px 0 10px 0;" data-modes="flood"></div>
 
-                <div class="color-analysis" id="color-analysis">
+                <div class="color-analysis" id="color-analysis" data-modes="flood">
                     <div class="color-row">
                         <div class="color-swatch" style="background: #6b5a3a;"></div>
                         <div class="color-name">Brown</div>
@@ -1502,7 +1540,7 @@
                     <button class="baseline-btn" onclick="resetZonePolygon()" style="margin-top:6px;width:100%">✏️ Reset &amp; Redraw Polygon</button>
                 </div>
 
-                <div style="margin-top: 14px;">
+                <div style="margin-top: 14px;" data-modes="flood,parking">
                     <div class="section-heading">Baseline Frame</div>
                     <div class="baseline-row">
                         <button class="baseline-btn" id="baseline-btn" onclick="captureBaseline()">📸 Capture Dry Baseline</button>
@@ -1940,9 +1978,31 @@
         // ════════════════════════════════════════════════════════════════
         //  MODE SELECTION
         // ════════════════════════════════════════════════════════════════
+        // Elements tagged data-modes="a,b,c" only show while the active mode
+        // is one of that comma list — keeps mode-specific inputs (Target
+        // Plate, Baseline, Sensitivity, etc.) from cluttering every other
+        // mode's panel as more services get added.
+        function updateModeVisibility(mode) {
+            document.querySelectorAll('[data-modes]').forEach(el => {
+                el.style.display = el.dataset.modes.split(',').includes(mode) ? '' : 'none';
+            });
+        }
+
+        const MODE_LABELS = {
+            flood: '🌊 Flood Detection',
+            parking: '🚗 Parking Watch',
+            object: '🔍 Object Detection',
+            people: '👤 People Detection',
+            fall: '🚑 Fall Detection',
+            plate: '🔢 License Plate'
+        };
+
         function setDetectionMode(mode) {
             if (detectionMode === mode) return;
             detectionMode = mode;
+            updateModeVisibility(mode);
+            const captionEl = document.getElementById('mode-active-caption');
+            if (captionEl) captionEl.textContent = MODE_LABELS[mode] || '';
 
             const floodBtn = document.getElementById('mode-flood-btn');
             const parkingBtn = document.getElementById('mode-parking-btn');
@@ -4507,6 +4567,7 @@
         // ════════════════════════════════════════════════════════════════
         loadSubscriptionSettings();
         loadTargetPlateSettings();
+        updateModeVisibility(detectionMode);
         // Defer feedback modal init until DOM is fully parsed (modal HTML is below this script)
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initFeedbackModal);
@@ -4514,7 +4575,6 @@
             requestAnimationFrame(initFeedbackModal);
         }
         addAlert('VisionWatch AI initialized — enter a source below to begin', 'info');
-        setDetectionMode('object');
     </script>
 
     <!-- ── Feedback / Suggestion Modal (strictly hidden by default) ── -->
