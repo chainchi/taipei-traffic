@@ -59,6 +59,8 @@ Switching modes automatically loads whatever AI model that mode needs (you'll se
 - Tap empty space, or press the **🔴 Release Lock** button, to let go of the current lock.
 - This mode doesn't send email alerts (there's no target to compare against, unlike License Plate). It's for keeping visual tabs on one thing, not for automated notifications.
 
+*Known limitations:* only objects the AI actually draws a box around can be locked — small, fast-moving, or heavily overlapping objects (e.g. a ball in play, players bunched together in a crowd) are sometimes missed entirely and can't be tapped until the app happens to recognize them. Also, the app doesn't truly "remember" an object's exact identity between frames — after it's been out of view for a while, if there are several very similar-looking objects of the same type nearby (e.g. two identical cars), it's possible for the lock to reacquire the wrong one.
+
 ---
 
 ## 4. The Monitoring Zone
