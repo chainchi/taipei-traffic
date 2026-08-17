@@ -54,8 +54,9 @@ Switching modes automatically loads whatever AI model that mode needs (you'll se
 
 **Object Tracking mode notes:**
 - Every detected object gets a blue box, same as Object Detection mode. **Tap/click any box to lock onto it** — it gets marked with a glowing red circle that follows it as it moves.
+- Trying to tap something small or fast-moving? Press **⏸ Pause to Select** (next to REC) to freeze the frame first, then tap precisely. Locking onto something automatically resumes the video — no need to press Resume yourself.
 - If the object leaves the frame or gets blocked from view, the lock doesn't cancel — the circle freezes at its last known spot and dims to a dashed "searching…" state until the object reappears, then picks the follow back up automatically.
-- Tap empty space, or press the **🔴 Release Lock** button (next to REC), to let go of the current lock.
+- Tap empty space, or press the **🔴 Release Lock** button, to let go of the current lock.
 - This mode doesn't send email alerts (there's no target to compare against, unlike License Plate). It's for keeping visual tabs on one thing, not for automated notifications.
 
 ---
