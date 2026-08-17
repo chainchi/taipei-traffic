@@ -58,12 +58,15 @@ Switching modes automatically loads whatever AI model that mode needs (you'll se
 - If the object leaves the frame or gets blocked from view, the lock doesn't cancel — the circle freezes at its last known spot and dims to a dashed "searching…" state until the object reappears, then picks the follow back up automatically.
 - Tap empty space, or press the **🔴 Release Lock** button, to let go of the current lock.
 - This mode doesn't send email alerts (there's no target to compare against, unlike License Plate). It's for keeping visual tabs on one thing, not for automated notifications.
+- There's no monitoring zone in this mode — you can tap and lock onto any object anywhere in the frame, not just inside a drawn area.
 
 *Known limitations:* only objects the AI actually draws a box around can be locked — small, fast-moving, or heavily overlapping objects (e.g. a ball in play, players bunched together in a crowd) are sometimes missed entirely and can't be tapped until the app happens to recognize them. Also, the app doesn't truly "remember" an object's exact identity between frames — after it's been out of view for a while, if there are several very similar-looking objects of the same type nearby (e.g. two identical cars), it's possible for the lock to reacquire the wrong one.
 
 ---
 
 ## 4. The Monitoring Zone
+
+*(Applies to every mode except 🎯 Object Tracking, which watches the whole frame.)*
 
 The dashed cyan shape on the video is your monitoring zone — only what's inside it gets analyzed.
 
