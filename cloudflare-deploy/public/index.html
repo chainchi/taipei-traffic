@@ -1546,6 +1546,8 @@
                         <button class="btn" style="padding: 0 14px; font-size: 0.75rem;" onclick="loadCustomURL()">LOAD</button>
                     </div>
                     <button class="btn btn-webcam" onclick="loadWebcam()" style="width: 100%; margin-top: 8px;">📷 Use Local Webcam</button>
+                    <button class="btn btn-webcam" onclick="document.getElementById('local-file-input').click()" style="width: 100%; margin-top: 8px;">📁 Load Local Video File</button>
+                    <input type="file" id="local-file-input" accept="video/*" style="display:none" onchange="loadLocalVideoFile(event)">
                 </div>
 
                 <!-- Email Alerts Subscription Row — every mode except Object
@@ -2543,6 +2545,41 @@
                     startAnalysis();
                 }, { once: true });
             }
+        }
+
+        let localFileObjectUrl = null; // revoked on the next load to avoid leaking blob URLs
+
+        function loadLocalVideoFile(event) {
+            const file = event.target.files && event.target.files[0];
+            event.target.value = ''; // allow re-selecting the same file later
+            if (!file) return;
+
+            lockedObject = null; updateTrackingLockUI(); // a lock from the previous feed is meaningless here
+            disconnectVideoLinksRoom();
+            if (video.srcObject) {
+                video.srcObject.getTracks().forEach(t => t.stop());
+                video.srcObject = null;
+            }
+            webcamActive = false;
+            document.getElementById('flip-cam-btn').style.display = 'none';
+            if (localFileObjectUrl) URL.revokeObjectURL(localFileObjectUrl);
+
+            localFileObjectUrl = URL.createObjectURL(file);
+            document.getElementById('cam-name').textContent = file.name.length > 40 ? file.name.slice(0, 37) + '…' : file.name;
+            document.getElementById('cam-location').textContent = 'Local file';
+            document.getElementById('source-overlay').classList.add('hidden');
+
+            video.removeAttribute('crossOrigin'); // same-origin blob: URL, no CORS involved
+            video.src = localFileObjectUrl;
+            video.addEventListener('loadedmetadata', () => {
+                video.play().catch(() => {});
+                startAnalysis();
+                addAlert(`✅ Loaded local file: ${file.name}`, 'safe');
+            }, { once: true });
+            video.addEventListener('error', () => {
+                addAlert(`⚠️ Couldn't play "${file.name}" — the browser may not support this video's format/codec.`, 'warn');
+            }, { once: true });
+            addAlert('Loading local video file…', 'info');
         }
 
         function loadCustomURL() {
