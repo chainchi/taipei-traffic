@@ -1418,6 +1418,7 @@
                     <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')" title="People Detection"><span class="mode-icon">👤</span><span class="mode-label"> People Detection</span></button>
                     <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')" title="Fall Detection"><span class="mode-icon">🚑</span><span class="mode-label"> Fall Detection</span></button>
                     <button class="mode-btn" id="mode-plate-btn" onclick="setDetectionMode('plate')" title="License Plate"><span class="mode-icon">🔢</span><span class="mode-label"> License Plate</span></button>
+                    <button class="mode-btn" id="mode-tracking-btn" onclick="setDetectionMode('tracking')" title="Object Tracking"><span class="mode-icon">🎯</span><span class="mode-label"> Object Tracking</span></button>
                 </div>
                 <div class="mode-active-caption" id="mode-active-caption">🌊 Flood Detection</div>
             </div>
@@ -1998,12 +1999,13 @@
         let lastObjectZoneCount = 0;
         let lastObjectClassSet = '';
 
-        // Object Tracking (click an object in Object Detection mode to lock
-        // onto it). coco-ssd gives no persistent identity between frames, so
-        // this re-associates the lock each cycle by nearest position among
-        // same-class detections, backed by a crude color signature so a
-        // re-appearance after being off-screen doesn't latch onto the wrong
-        // same-class object.
+        // Object Tracking mode (own mode, separate from Object Detection) —
+        // tap a detected object to lock onto it. coco-ssd gives no persistent
+        // identity between frames, so this re-associates the lock each cycle
+        // by nearest position among same-class detections, backed by a crude
+        // color signature so a re-appearance after being off-screen doesn't
+        // latch onto the wrong same-class object.
+        let trackingFrameCount = 0;
         let lockedObject = null; // { class, bbox, center:{x,y}, signature:{r,g,b}, lost, lostSince }
         const OBJECT_LOCK_COLOR_MISMATCH_THRESHOLD = 70; // RGB euclidean distance, 0-441
 
@@ -2082,7 +2084,8 @@
             object: '🔍 Object Detection',
             people: '👤 People Detection',
             fall: '🚑 Fall Detection',
-            plate: '🔢 License Plate'
+            plate: '🔢 License Plate',
+            tracking: '🎯 Object Tracking'
         };
 
         function setDetectionMode(mode) {
@@ -2100,6 +2103,7 @@
             const peopleBtn = document.getElementById('mode-people-btn');
             const fallBtn = document.getElementById('mode-fall-btn');
             const plateBtn = document.getElementById('mode-plate-btn');
+            const trackingBtn = document.getElementById('mode-tracking-btn');
 
             // Toggle active styles
             floodBtn.classList.toggle('active', mode === 'flood');
@@ -2108,6 +2112,7 @@
             peopleBtn.classList.toggle('active', mode === 'people');
             fallBtn.classList.toggle('active', mode === 'fall');
             plateBtn.classList.toggle('active', mode === 'plate');
+            trackingBtn.classList.toggle('active', mode === 'tracking');
 
             if (mode === 'flood') {
                 addAlert('🔄 Switched to Flood Detection Mode', 'info');
@@ -2141,7 +2146,7 @@
                 fallFrameCount = 0;
                 fallEmailsSentCount = 0;
                 updateColors(0, 0, 0, 0);
-            } else {
+            } else if (mode === 'plate') {
                 const plateMsg = plateActive
                     ? `🔄 Switched to License Plate Mode — initializing detector + OCR... Draw a zone. Watching for plate ${targetPlate}.`
                     : '🔄 Switched to License Plate Mode — set a Target License Plate below to start watching for it.';
@@ -2155,6 +2160,14 @@
                 plateEmailsSentCount = 0;
                 lastPlateCheckTime = 0;
                 updateColors(0, 0, 0, 0);
+            } else {
+                addAlert('🎯 Switched to Object Tracking Mode — tap any detected object to lock onto it. The lock keeps watching for it even if it leaves the frame.', 'info');
+                loadCocoModel();
+                lastDetectedObjects = [];
+                lockedObject = null;
+                trackingFrameCount = 0;
+                updateColors(0, 0, 0, 0);
+                updateTrackingLockUI();
             }
 
             // Update Sidebar UI Titles and Labels based on Mode
@@ -2210,7 +2223,7 @@
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Frame Count';
                 document.getElementById('risk-label').textContent = 'CLEAR';
                 document.getElementById('risk-label').className = 'risk-label safe';
-            } else {
+            } else if (mode === 'plate') {
                 if (gaugeTitle) gaugeTitle.textContent = 'Plate Match';
                 if (gaugeUnit) gaugeUnit.textContent = 'VEHICLES';
                 if (mWaterLabel) mWaterLabel.textContent = 'Last Read';
@@ -2218,6 +2231,15 @@
                 if (mChangeLabel) mChangeLabel.textContent = 'Emails Sent';
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Target';
                 document.getElementById('risk-label').textContent = 'NO MATCH';
+                document.getElementById('risk-label').className = 'risk-label safe';
+            } else {
+                if (gaugeTitle) gaugeTitle.textContent = 'Tracking Status';
+                if (gaugeUnit) gaugeUnit.textContent = 'LOCK';
+                if (mWaterLabel) mWaterLabel.textContent = 'Target Class';
+                if (mReflectLabel) mReflectLabel.textContent = 'State';
+                if (mChangeLabel) mChangeLabel.textContent = 'Frame Count';
+                if (mTurbidLabel) mTurbidLabel.textContent = 'Objects Seen';
+                document.getElementById('risk-label').textContent = 'NO TARGET';
                 document.getElementById('risk-label').className = 'risk-label safe';
             }
 
@@ -2233,6 +2255,8 @@
                 updateFallMetrics([], fallFrameCount);
             } else if (mode === 'plate') {
                 updatePlateMetrics([], []);
+            } else if (mode === 'tracking') {
+                updateTrackingMetrics();
             } else {
                 updateGauge(0);
                 updateMetrics(0, 0, 0, 0);
@@ -2734,7 +2758,7 @@
             // A tap is a pointer down/up pair with barely any movement — as
             // opposed to a drag, which resizes/moves the zone above instead.
             if (movedDist < hitRadiusPx()) {
-                if (detectionMode === 'object' && zoneClosed) {
+                if (detectionMode === 'tracking' && zoneClosed) {
                     const hit = findObjectAtPoint(cp.x, cp.y);
                     if (hit) {
                         lockOntoObject(hit);
@@ -2916,6 +2940,13 @@
             if (detectionMode === 'object') {
                 runObjectDetectionFrame();
                 drawOverlay(null, Math.min(100, lastObjectZoneCount * 25));
+                animId = requestAnimationFrame(analyzeLoop);
+                return;
+            }
+
+            if (detectionMode === 'tracking') {
+                runObjectTrackingFrame();
+                drawOverlay(null, lockedObject && !lockedObject.lost ? 100 : 0);
                 animId = requestAnimationFrame(analyzeLoop);
                 return;
             }
@@ -3355,6 +3386,7 @@
             };
             addAlert(`🔴 Locked onto ${obj.class} — the marker will follow it, including if it leaves and re-enters the frame`, 'safe');
             updateTrackingLockUI();
+            updateTrackingMetrics();
         }
 
         function releaseObjectLock() {
@@ -3362,6 +3394,7 @@
             addAlert(`🔓 Released tracking lock on ${lockedObject.class}`, 'info');
             lockedObject = null;
             updateTrackingLockUI();
+            updateTrackingMetrics();
         }
 
         function updateTrackingLockUI() {
@@ -3410,6 +3443,59 @@
                 lockedObject.lost = true;
                 lockedObject.lostSince = Date.now();
                 addAlert(`👻 Lost sight of ${lockedObject.class} — still watching for it to reappear`, 'warn');
+            }
+        }
+
+        function updateTrackingMetrics() {
+            const circumference = 2 * Math.PI * 65;
+            let statusText, statusClass, pct, strokeColor;
+
+            if (!lockedObject) {
+                statusText = 'NO TARGET'; statusClass = 'safe'; pct = 0; strokeColor = 'var(--accent)';
+            } else if (lockedObject.lost) {
+                statusText = 'SEARCHING'; statusClass = 'low'; pct = 50; strokeColor = 'var(--accent)';
+            } else {
+                statusText = 'LOCKED'; statusClass = 'critical'; pct = 100; strokeColor = '#ff3355';
+            }
+
+            const labelEl = document.getElementById('risk-label');
+            labelEl.textContent = statusText;
+            labelEl.className = 'risk-label ' + statusClass;
+
+            const valueEl = document.getElementById('risk-value');
+            valueEl.textContent = lockedObject ? (lockedObject.lost ? '…' : '●') : '—';
+            valueEl.style.color = strokeColor;
+            valueEl.style.textShadow = `0 0 20px ${strokeColor}`;
+
+            const fill = document.getElementById('gauge-fill');
+            fill.style.strokeDashoffset = circumference - (pct / 100) * circumference;
+            fill.style.stroke = strokeColor;
+            fill.style.filter = `drop-shadow(0 0 8px ${strokeColor})`;
+
+            document.getElementById('m-water-pct').textContent = lockedObject ? lockedObject.class : '—';
+            document.getElementById('m-reflect').textContent = lockedObject ? (lockedObject.lost ? 'searching' : 'tracking') : 'none';
+            document.getElementById('m-change').textContent = trackingFrameCount;
+            document.getElementById('m-turbidity').textContent = lastDetectedObjects.length;
+
+            document.getElementById('bar-water').style.width = (lockedObject && !lockedObject.lost ? 100 : 0) + '%';
+            document.getElementById('bar-reflect').style.width = (lockedObject ? (lockedObject.lost ? 40 : 100) : 0) + '%';
+            document.getElementById('bar-change').style.width = Math.min(100, trackingFrameCount) + '%';
+            document.getElementById('bar-turbid').style.width = Math.min(100, lastDetectedObjects.length * 20) + '%';
+        }
+
+        async function runObjectTrackingFrame() {
+            if (!cocoModel) return;
+
+            trackingFrameCount++;
+            if (trackingFrameCount % 5 !== 0) return;
+
+            try {
+                const predictions = await cocoModel.detect(video);
+                lastDetectedObjects = predictions.filter(p => p.score > 0.5);
+                updateObjectLock();
+                updateTrackingMetrics();
+            } catch (e) {
+                console.error('Object tracking detection error:', e);
             }
         }
 
@@ -3987,6 +4073,37 @@
         // ════════════════════════════════════════════════════════════════
         //  OVERLAY DRAWING
         // ════════════════════════════════════════════════════════════════
+        // Shared by Object Detection and Object Tracking modes — both run
+        // the same coco-ssd detections and draw the same boxes; Tracking
+        // additionally draws the lock circle on top (see drawOverlay).
+        function drawObjectBoxes(scaleX, scaleY) {
+            lastDetectedObjects.forEach(obj => {
+                const [bx, by, bw, bh] = obj.bbox;
+                const cx = bx * scaleX;
+                const cy = by * scaleY;
+                const cwid = bw * scaleX;
+                const chei = bh * scaleY;
+
+                const cp1 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh) / video.videoHeight };
+                const cp2 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh / 2) / video.videoHeight };
+                const isActive = pointInPolygon(cp1.x, cp1.y, zonePoints) ||
+                                 pointInPolygon(cp2.x, cp2.y, zonePoints);
+
+                octx.strokeStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
+                octx.lineWidth = 2.5;
+                octx.strokeRect(cx, cy, cwid, chei);
+
+                octx.fillStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
+                octx.font = "bold 10px Orbitron, monospace";
+                const tag = `${obj.class.toUpperCase()} ${Math.round(obj.score * 100)}%`;
+                const tagW = octx.measureText(tag).width;
+                octx.fillRect(cx, cy - 18, tagW + 10, 18);
+
+                octx.fillStyle = '#ffffff';
+                octx.fillText(tag, cx + 5, cy - 5);
+            });
+        }
+
         function drawOverlay(zone, risk) {
             octx.clearRect(0, 0, overlay.width, overlay.height);
             drawTimestamp();
@@ -4074,7 +4191,11 @@
                     ? `PEOPLE DETECTION · ${lastPeopleZoneCount} IN ZONE`
                     : detectionMode === 'fall'
                     ? `FALL DETECTION · ${lastFallZoneCount} DOWN`
-                    : `LICENSE PLATE · ${lastDetectedPlateVehicles.length} PLATE(S)`;
+                    : detectionMode === 'plate'
+                    ? `LICENSE PLATE · ${lastDetectedPlateVehicles.length} PLATE(S)`
+                    : lockedObject
+                    ? `TRACKING · ${lockedObject.class.toUpperCase()}${lockedObject.lost ? ' (SEARCHING)' : ' (LOCKED)'}`
+                    : 'TRACKING · NO TARGET';
                 const lx = pts[0].x, ly = pts[0].y;
                 octx.font = 'bold 11px Orbitron, monospace';
                 const tw = octx.measureText(labelText).width;
@@ -4123,35 +4244,14 @@
                     octx.fillStyle = '#ffffff';
                     octx.fillText(tag, cx + 5, cy - 5);
                 });
-            } else if (detectionMode === 'object' && cocoModel && (lastDetectedObjects.length > 0 || lockedObject)) {
+            } else if (detectionMode === 'object' && cocoModel && lastDetectedObjects.length > 0) {
                 const scaleX = cw / video.videoWidth;
                 const scaleY = ch / video.videoHeight;
-
-                lastDetectedObjects.forEach(obj => {
-                    const [bx, by, bw, bh] = obj.bbox;
-                    const cx = bx * scaleX;
-                    const cy = by * scaleY;
-                    const cwid = bw * scaleX;
-                    const chei = bh * scaleY;
-
-                    const cp1 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh) / video.videoHeight };
-                    const cp2 = { x: (bx + bw / 2) / video.videoWidth, y: (by + bh / 2) / video.videoHeight };
-                    const isActive = pointInPolygon(cp1.x, cp1.y, zonePoints) ||
-                                     pointInPolygon(cp2.x, cp2.y, zonePoints);
-
-                    octx.strokeStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
-                    octx.lineWidth = 2.5;
-                    octx.strokeRect(cx, cy, cwid, chei);
-
-                    octx.fillStyle = isActive ? 'rgba(0, 200, 255, 0.9)' : 'rgba(140, 150, 165, 0.55)';
-                    octx.font = "bold 10px Orbitron, monospace";
-                    const tag = `${obj.class.toUpperCase()} ${Math.round(obj.score * 100)}%`;
-                    const tagW = octx.measureText(tag).width;
-                    octx.fillRect(cx, cy - 18, tagW + 10, 18);
-
-                    octx.fillStyle = '#ffffff';
-                    octx.fillText(tag, cx + 5, cy - 5);
-                });
+                drawObjectBoxes(scaleX, scaleY);
+            } else if (detectionMode === 'tracking' && cocoModel && (lastDetectedObjects.length > 0 || lockedObject)) {
+                const scaleX = cw / video.videoWidth;
+                const scaleY = ch / video.videoHeight;
+                drawObjectBoxes(scaleX, scaleY);
 
                 // Tracking lock — drawn on top so it's never hidden behind a
                 // regular detection box. Stays visible (dashed, dimmer) even
@@ -4185,6 +4285,11 @@
                     octx.fillRect(tagX, tagY, tagW + 12, 20);
                     octx.fillStyle = lockedObject.lost ? 'rgba(255,120,140,0.9)' : '#ff3355';
                     octx.fillText(tag, tagX + 6, tagY + 14);
+                } else {
+                    // No lock yet — hint that objects are clickable.
+                    octx.font = "bold 12px Orbitron, monospace";
+                    octx.fillStyle = 'rgba(255,255,255,0.55)';
+                    octx.fillText('Tap an object to lock onto it', 12, ch - 14);
                 }
             } else if (detectionMode === 'people' && cocoModel && lastDetectedPeople.length > 0) {
                 lastDetectedPeople.forEach(person => {
