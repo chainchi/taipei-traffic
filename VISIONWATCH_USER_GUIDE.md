@@ -1,6 +1,6 @@
 # VisionWatch AI — User Guide
 
-VisionWatch AI is a live-video monitoring app that runs entirely in your browser. Point it at a camera feed and it can watch for floods, occupied parking spots, objects, people, falls, or a specific license plate — and email you the moment something happens.
+VisionWatch AI is a live-video monitoring app that runs entirely in your browser. Point it at a camera feed and it can watch for floods, occupied parking spots, objects, people, falls, a specific license plate, or lock onto and follow one specific object — and email you the moment something happens.
 
 **App:** https://taipei-traffic-flood.pages.dev/
 
@@ -10,7 +10,7 @@ No installation, no account required. Everything (video analysis, OCR, AI models
 
 ## 1. Quick Start
 
-1. **Pick a detection mode** from the row of icons above the video (🌊 Flood, 🚗 Parking, 🔍 Object, 👤 People, 🚑 Fall, 🔢 License Plate).
+1. **Pick a detection mode** from the row of icons above the video (🌊 Flood, 🚗 Parking, 🔍 Object, 👤 People, 🚑 Fall, 🔢 License Plate, 🎯 Object Tracking).
 2. **Load a video source** — enter a camera ID or URL under "Custom Source" and press **LOAD**, or tap **📷 Use Local Webcam**.
 3. **Draw a monitoring zone** on the video — click/tap 3+ points, then double-click (or click the first point again) to close the shape. This is the only area the app analyzes.
 
@@ -44,12 +44,19 @@ On phones, once the webcam is active you can tap the **🔄 flip camera** button
 | 👤 **People Detection** | A person entering the zone | No |
 | 🚑 **Fall Detection** | Someone appearing to be lying down / collapsed in the zone | No |
 | 🔢 **License Plate** | A specific license plate passing through the zone | **Yes** — set it under "Target License Plate" |
+| 🎯 **Object Tracking** | One specific object you tap to lock onto — the marker follows it around the frame | You pick it by tapping, not typing |
 
 Switching modes automatically loads whatever AI model that mode needs (you'll see it in the Alert Log). The gauge, status pill, and sidebar labels all relabel themselves to match the active mode.
 
 **License Plate mode notes:**
 - Type the plate you're watching for into **Target License Plate** and press SAVE. Without a target set, the app still shows every plate it reads on-screen — it just won't send match alerts.
 - OCR accuracy depends heavily on camera angle, distance, and lighting. A close, front-facing view of the plate works best; wide intersection shots of small/distant plates will read less reliably.
+
+**Object Tracking mode notes:**
+- Every detected object gets a blue box, same as Object Detection mode. **Tap/click any box to lock onto it** — it gets marked with a glowing red circle that follows it as it moves.
+- If the object leaves the frame or gets blocked from view, the lock doesn't cancel — the circle freezes at its last known spot and dims to a dashed "searching…" state until the object reappears, then picks the follow back up automatically.
+- Tap empty space, or press the **🔴 Release Lock** button (next to REC), to let go of the current lock.
+- This mode doesn't send email alerts (there's no target to compare against, unlike License Plate). It's for keeping visual tabs on one thing, not for automated notifications.
 
 ---
 
