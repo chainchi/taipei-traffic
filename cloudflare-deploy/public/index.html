@@ -1483,7 +1483,10 @@
                     🔴 Release Lock
                 </button>
                 <button class="pause-select-btn" id="pause-select-btn" onclick="toggleTrackingPause()" data-modes="tracking" style="display:none" title="Pause the video to precisely tap the object you want to track">
-                    ⏸ <span id="pause-select-label">Pause to Select</span>
+                    ⏸ <span id="pause-select-label">Pause</span>
+                </button>
+                <button class="pause-select-btn" id="replay-btn" onclick="replayVideo()" style="display:none" title="Play again from the start">
+                    🔁 Replay
                 </button>
             </div>
 
@@ -2455,6 +2458,7 @@
         }
 
         function playHLS(url) {
+            lastHlsUrl = url; // so Replay can reconnect this exact stream if it ends/drops
             if (hls) { hls.destroy(); hls = null; }
 
             if (Hls.isSupported()) {
@@ -2555,6 +2559,7 @@
             if (!file) return;
 
             lockedObject = null; updateTrackingLockUI(); // a lock from the previous feed is meaningless here
+            lastHlsUrl = null; // this source isn't HLS — Replay should just restart it, not reconnect a stale stream
             disconnectVideoLinksRoom();
             if (video.srcObject) {
                 video.srcObject.getTracks().forEach(t => t.stop());
@@ -2622,6 +2627,7 @@
                 playHLS(val);
                 addAlert('Loading HLS stream…', 'info');
             } else {
+                lastHlsUrl = null; // this source isn't HLS — Replay should just restart it, not reconnect a stale stream
                 video.src = val;
                 video.crossOrigin = 'anonymous';
                 video.addEventListener('loadedmetadata', () => {
@@ -2646,6 +2652,7 @@
 
         function loadWebcam(facingMode) {
             lockedObject = null; updateTrackingLockUI(); // a lock from the previous feed is meaningless here
+            lastHlsUrl = null; // this source isn't HLS — Replay should just restart it, not reconnect a stale stream
             facingMode = facingMode || currentFacingMode;
             const constraints = {
                 audio: false,
@@ -3519,9 +3526,35 @@
             if (!video.paused) return;
             intentionalPause = false;
             video.play().catch(() => {});
-            document.getElementById('pause-select-label').textContent = 'Pause to Select';
+            document.getElementById('pause-select-label').textContent = 'Pause';
             document.getElementById('pause-select-btn').firstChild.textContent = '⏸ ';
             addAlert('▶️ Video resumed', 'info');
+        }
+
+        // Replay — shown whenever the current source (a local file, or a
+        // stream that dropped) reaches its end, in any mode, not just
+        // Object Tracking. Restarts a seekable file from 0; reconnects an
+        // HLS stream from scratch since seeking to 0 wouldn't actually
+        // fetch new segments for a live source.
+        let lastHlsUrl = null;
+        video.addEventListener('ended', () => {
+            document.getElementById('replay-btn').style.display = 'flex';
+            addAlert('⏹️ Playback ended — press Replay to play it again', 'info');
+        });
+        video.addEventListener('playing', () => {
+            document.getElementById('replay-btn').style.display = 'none';
+        });
+
+        function replayVideo() {
+            document.getElementById('replay-btn').style.display = 'none';
+            if (hls && lastHlsUrl) {
+                playHLS(lastHlsUrl);
+                addAlert('🔁 Reconnecting stream…', 'info');
+                return;
+            }
+            video.currentTime = 0;
+            video.play().catch(() => {});
+            addAlert('🔁 Replaying from the start', 'info');
         }
 
         function releaseObjectLock() {
