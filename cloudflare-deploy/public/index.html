@@ -2583,16 +2583,25 @@
 
             if (val.endsWith('.m3u8')) {
                 playHLS(val);
+                addAlert('Loading HLS stream…', 'info');
             } else {
                 video.src = val;
                 video.crossOrigin = 'anonymous';
                 video.addEventListener('loadedmetadata', () => {
                     video.play().catch(() => {});
                     startAnalysis();
+                    addAlert('✅ Custom source loaded', 'safe');
                 }, { once: true });
+                // The .mp4/.mp4-ish URL format is supported, but the specific
+                // link might not be — many video hosts (Pixabay, some CDNs,
+                // etc.) block direct hotlinking/embedding from other sites
+                // with CORS or a bot challenge, which surfaces here as a
+                // load error rather than at typing/paste time.
+                video.addEventListener('error', () => {
+                    addAlert(`⚠️ Couldn't load that video — the link may be broken, or the host may block direct embedding/hotlinking from other sites (common with stock-video sites like Pixabay/Pexels). Try a different URL, or use a camera ID / webcam instead.`, 'warn');
+                }, { once: true });
+                addAlert('Loading video…', 'info');
             }
-
-            addAlert('Custom source loaded', 'info');
         }
 
         let currentFacingMode = 'environment'; // default: rear camera
