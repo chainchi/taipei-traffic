@@ -535,6 +535,24 @@
             gap: 5px;
         }
 
+        .release-lock-btn {
+            background: rgba(255, 51, 85, 0.12);
+            border: 1px solid rgba(255, 51, 85, 0.5);
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-family: var(--display);
+            font-size: 0.58rem;
+            letter-spacing: 0.5px;
+            color: #ff3355;
+            cursor: pointer;
+            transition: all 0.2s;
+            align-items: center;
+            gap: 5px;
+        }
+        .release-lock-btn:hover {
+            background: rgba(255, 51, 85, 0.22);
+        }
+
         .rec-btn:hover {
             background: rgba(255, 51, 85, 0.15);
             border-color: var(--danger);
@@ -1427,6 +1445,9 @@
                 <button class="flip-cam-btn" id="flip-cam-btn" onclick="flipCamera()" style="display:none" title="Switch front/rear camera">
                     🔄 <span id="flip-cam-label">Rear</span>
                 </button>
+                <button class="release-lock-btn" id="release-lock-btn" onclick="releaseObjectLock()" style="display:none" title="Stop tracking the locked object">
+                    🔴 Release Lock
+                </button>
             </div>
 
             <!-- Camera quick-links removed — Custom Source (URL / 3-digit camera ID) is the only source entry point -->
@@ -1977,6 +1998,15 @@
         let lastObjectZoneCount = 0;
         let lastObjectClassSet = '';
 
+        // Object Tracking (click an object in Object Detection mode to lock
+        // onto it). coco-ssd gives no persistent identity between frames, so
+        // this re-associates the lock each cycle by nearest position among
+        // same-class detections, backed by a crude color signature so a
+        // re-appearance after being off-screen doesn't latch onto the wrong
+        // same-class object.
+        let lockedObject = null; // { class, bbox, center:{x,y}, signature:{r,g,b}, lost, lostSince }
+        const OBJECT_LOCK_COLOR_MISMATCH_THRESHOLD = 70; // RGB euclidean distance, 0-441
+
         // People Detection mode (zone-gated person detection + email alerts)
         let peopleFrameCount = 0;
         let lastDetectedPeople = [];
@@ -2061,6 +2091,8 @@
             updateModeVisibility(mode);
             const captionEl = document.getElementById('mode-active-caption');
             if (captionEl) captionEl.textContent = MODE_LABELS[mode] || '';
+            lockedObject = null; // tracking lock is Object Detection-only and meaningless across a mode switch
+            updateTrackingLockUI();
 
             const floodBtn = document.getElementById('mode-flood-btn');
             const parkingBtn = document.getElementById('mode-parking-btn');
@@ -2266,6 +2298,7 @@
             document.getElementById('cam-name').textContent = `${name} (CAM-${camId})`;
             document.getElementById('cam-location').textContent = `${station} · ${distInfo}`;
             addAlert(`Loading camera ${camId}: ${name} near ${station}`, 'info');
+            lockedObject = null; updateTrackingLockUI(); // a lock from the previous feed is meaningless here
 
             // Stop any active webcam stream and hide flip button
             if (video.srcObject) {
@@ -2431,6 +2464,7 @@
         function loadCustomURL() {
             const val = document.getElementById('url-input').value.trim();
             if (!val) return;
+            lockedObject = null; updateTrackingLockUI(); // a lock from the previous feed is meaningless here
 
             // Check if it's just a cam ID (3 digits)
             if (/^\d{3}$/.test(val)) {
@@ -2481,6 +2515,7 @@
         let webcamActive = false;
 
         function loadWebcam(facingMode) {
+            lockedObject = null; updateTrackingLockUI(); // a lock from the previous feed is meaningless here
             facingMode = facingMode || currentFacingMode;
             const constraints = {
                 audio: false,
@@ -2699,6 +2734,15 @@
             // A tap is a pointer down/up pair with barely any movement — as
             // opposed to a drag, which resizes/moves the zone above instead.
             if (movedDist < hitRadiusPx()) {
+                if (detectionMode === 'object' && zoneClosed) {
+                    const hit = findObjectAtPoint(cp.x, cp.y);
+                    if (hit) {
+                        lockOntoObject(hit);
+                    } else if (lockedObject) {
+                        releaseObjectLock();
+                    }
+                }
+
                 const now = Date.now();
                 if (lastTapPt && (now - lastTapTime) < DOUBLE_TAP_WINDOW_MS && ptDist(lastTapPt, cp) < hitRadiusPx() * 2) {
                     lastTapTime = 0;
@@ -3260,6 +3304,115 @@
             fill.style.filter = 'drop-shadow(0 0 8px var(--accent))';
         }
 
+        // Small average-color fingerprint of a detection's crop — cheap
+        // stand-in for real re-identification, used only to arbitrate between
+        // multiple same-class candidates after the locked object has been
+        // gone for a while.
+        function computeObjectSignature(bbox) {
+            const [bx, by, bw, bh] = bbox;
+            if (bw < 2 || bh < 2) return null;
+            try {
+                const sigCanvas = document.createElement('canvas');
+                sigCanvas.width = 16;
+                sigCanvas.height = 16;
+                const sctx = sigCanvas.getContext('2d');
+                sctx.drawImage(video, bx, by, bw, bh, 0, 0, 16, 16);
+                const { data } = sctx.getImageData(0, 0, 16, 16);
+                let r = 0, g = 0, b = 0, n = 0;
+                for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++; }
+                return { r: r / n, g: g / n, b: b / n };
+            } catch (e) {
+                return null;
+            }
+        }
+        function colorSigDistance(a, b) {
+            if (!a || !b) return Infinity;
+            return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+        }
+
+        function findObjectAtPoint(px, py) {
+            // px/py are in video-pixel space, same as canvasPoint() output.
+            let best = null, bestArea = Infinity;
+            for (const obj of lastDetectedObjects) {
+                const [bx, by, bw, bh] = obj.bbox;
+                if (px >= bx && px <= bx + bw && py >= by && py <= by + bh) {
+                    const area = bw * bh;
+                    if (area < bestArea) { bestArea = area; best = obj; } // prefer the smallest/most specific box under the tap
+                }
+            }
+            return best;
+        }
+
+        function lockOntoObject(obj) {
+            const [bx, by, bw, bh] = obj.bbox;
+            lockedObject = {
+                class: obj.class,
+                bbox: obj.bbox,
+                center: { x: bx + bw / 2, y: by + bh / 2 },
+                signature: computeObjectSignature(obj.bbox),
+                lost: false,
+                lostSince: 0
+            };
+            addAlert(`🔴 Locked onto ${obj.class} — the marker will follow it, including if it leaves and re-enters the frame`, 'safe');
+            updateTrackingLockUI();
+        }
+
+        function releaseObjectLock() {
+            if (!lockedObject) return;
+            addAlert(`🔓 Released tracking lock on ${lockedObject.class}`, 'info');
+            lockedObject = null;
+            updateTrackingLockUI();
+        }
+
+        function updateTrackingLockUI() {
+            const btn = document.getElementById('release-lock-btn');
+            if (btn) btn.style.display = lockedObject ? 'flex' : 'none';
+        }
+
+        // Re-associates the lock with a same-class detection each cycle —
+        // nearest to the last known position by default; once the object has
+        // been missing for a while, also requires a plausible color-signature
+        // match so a reappearance doesn't silently jump onto the wrong
+        // same-class object elsewhere in frame.
+        function updateObjectLock() {
+            if (!lockedObject) return;
+
+            const candidates = lastDetectedObjects.filter(o => o.class === lockedObject.class);
+            const wasLost = lockedObject.lost;
+            const lostDurationMs = wasLost ? (Date.now() - lockedObject.lostSince) : 0;
+
+            let chosen = null;
+            if (candidates.length === 1) {
+                chosen = candidates[0];
+            } else if (candidates.length > 1) {
+                let bestScore = Infinity;
+                for (const c of candidates) {
+                    const [bx, by, bw, bh] = c.bbox;
+                    const ccx = bx + bw / 2, ccy = by + bh / 2;
+                    const dist = Math.hypot(ccx - lockedObject.center.x, ccy - lockedObject.center.y);
+                    const sig = computeObjectSignature(c.bbox);
+                    const cDist = colorSigDistance(sig, lockedObject.signature);
+                    if (lostDurationMs > 1500 && cDist > OBJECT_LOCK_COLOR_MISMATCH_THRESHOLD) continue;
+                    const score = dist + cDist * 2;
+                    if (score < bestScore) { bestScore = score; chosen = c; }
+                }
+            }
+
+            if (chosen) {
+                const [bx, by, bw, bh] = chosen.bbox;
+                lockedObject.bbox = chosen.bbox;
+                lockedObject.center = { x: bx + bw / 2, y: by + bh / 2 };
+                const freshSig = computeObjectSignature(chosen.bbox);
+                if (freshSig) lockedObject.signature = freshSig; // adapt to lighting drift
+                if (wasLost) addAlert(`🎯 Re-acquired ${lockedObject.class} — welcome back`, 'safe');
+                lockedObject.lost = false;
+            } else if (!lockedObject.lost) {
+                lockedObject.lost = true;
+                lockedObject.lostSince = Date.now();
+                addAlert(`👻 Lost sight of ${lockedObject.class} — still watching for it to reappear`, 'warn');
+            }
+        }
+
         async function runObjectDetectionFrame() {
             if (!cocoModel) return;
 
@@ -3269,6 +3422,7 @@
             try {
                 const predictions = await cocoModel.detect(video);
                 lastDetectedObjects = predictions.filter(p => p.score > 0.5);
+                updateObjectLock();
 
                 const vWidth = video.videoWidth, vHeight = video.videoHeight;
                 const inZone = lastDetectedObjects.filter(p => {
@@ -3969,11 +4123,12 @@
                     octx.fillStyle = '#ffffff';
                     octx.fillText(tag, cx + 5, cy - 5);
                 });
-            } else if (detectionMode === 'object' && cocoModel && lastDetectedObjects.length > 0) {
+            } else if (detectionMode === 'object' && cocoModel && (lastDetectedObjects.length > 0 || lockedObject)) {
+                const scaleX = cw / video.videoWidth;
+                const scaleY = ch / video.videoHeight;
+
                 lastDetectedObjects.forEach(obj => {
                     const [bx, by, bw, bh] = obj.bbox;
-                    const scaleX = cw / video.videoWidth;
-                    const scaleY = ch / video.videoHeight;
                     const cx = bx * scaleX;
                     const cy = by * scaleY;
                     const cwid = bw * scaleX;
@@ -3997,6 +4152,40 @@
                     octx.fillStyle = '#ffffff';
                     octx.fillText(tag, cx + 5, cy - 5);
                 });
+
+                // Tracking lock — drawn on top so it's never hidden behind a
+                // regular detection box. Stays visible (dashed, dimmer) even
+                // while the object is off-screen/occluded, since the lock is
+                // meant to persist through that, not clear itself.
+                if (lockedObject) {
+                    const [, , lbw, lbh] = lockedObject.bbox;
+                    const ccx = lockedObject.center.x * scaleX;
+                    const ccy = lockedObject.center.y * scaleY;
+                    const radius = Math.max(20, Math.hypot(lbw * scaleX, lbh * scaleY) / 2 + 8);
+
+                    octx.save();
+                    octx.beginPath();
+                    octx.arc(ccx, ccy, radius, 0, Math.PI * 2);
+                    octx.strokeStyle = lockedObject.lost ? 'rgba(255,51,85,0.45)' : 'rgba(255,51,85,0.95)';
+                    octx.lineWidth = lockedObject.lost ? 2 : 3.5;
+                    if (lockedObject.lost) octx.setLineDash([6, 5]);
+                    octx.shadowBlur = lockedObject.lost ? 0 : 14;
+                    octx.shadowColor = 'rgba(255,51,85,0.8)';
+                    octx.stroke();
+                    octx.setLineDash([]);
+                    octx.restore();
+
+                    const tag = lockedObject.lost
+                        ? `🔴 ${lockedObject.class.toUpperCase()} — searching…`
+                        : `🔴 LOCKED: ${lockedObject.class.toUpperCase()}`;
+                    octx.font = "bold 11px Orbitron, monospace";
+                    const tagW = octx.measureText(tag).width;
+                    const tagX = ccx - tagW / 2 - 6, tagY = ccy - radius - 24;
+                    octx.fillStyle = 'rgba(0,0,0,0.6)';
+                    octx.fillRect(tagX, tagY, tagW + 12, 20);
+                    octx.fillStyle = lockedObject.lost ? 'rgba(255,120,140,0.9)' : '#ff3355';
+                    octx.fillText(tag, tagX + 6, tagY + 14);
+                }
             } else if (detectionMode === 'people' && cocoModel && lastDetectedPeople.length > 0) {
                 lastDetectedPeople.forEach(person => {
                     const [bx, by, bw, bh] = person.bbox;
