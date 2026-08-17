@@ -553,6 +553,25 @@
             background: rgba(255, 51, 85, 0.22);
         }
 
+        .pause-select-btn {
+            display: inline-flex;
+            background: rgba(0, 200, 255, 0.1);
+            border: 1px solid rgba(0, 200, 255, 0.45);
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-family: var(--display);
+            font-size: 0.58rem;
+            letter-spacing: 0.5px;
+            color: var(--accent);
+            cursor: pointer;
+            transition: all 0.2s;
+            align-items: center;
+            gap: 5px;
+        }
+        .pause-select-btn:hover {
+            background: rgba(0, 200, 255, 0.2);
+        }
+
         .rec-btn:hover {
             background: rgba(255, 51, 85, 0.15);
             border-color: var(--danger);
@@ -1449,6 +1468,9 @@
                 <button class="release-lock-btn" id="release-lock-btn" onclick="releaseObjectLock()" style="display:none" title="Stop tracking the locked object">
                     🔴 Release Lock
                 </button>
+                <button class="pause-select-btn" id="pause-select-btn" onclick="toggleTrackingPause()" data-modes="tracking" style="display:none" title="Pause the video to precisely tap the object you want to track">
+                    ⏸ <span id="pause-select-label">Pause to Select</span>
+                </button>
             </div>
 
             <!-- Camera quick-links removed — Custom Source (URL / 3-digit camera ID) is the only source entry point -->
@@ -1789,6 +1811,10 @@
         // ── No-Signal Animation ──
         let noSigAnimId = null;
         let noSigVisible = true;
+        // Set while the video is deliberately paused (Object Tracking's
+        // "pause to select") so the native 'pause' event below doesn't
+        // mistake it for a dropped stream and show the reconnecting overlay.
+        let intentionalPause = false;
 
         function resizeNoSig() {
             noSigCanvas.width  = noSigCanvas.clientWidth  || 640;
@@ -1931,7 +1957,7 @@
         window.addEventListener('resize', resizeNoSig);
         startNoSignal();
         video.addEventListener('playing', stopNoSignal);
-        video.addEventListener('pause',   startNoSignal);
+        video.addEventListener('pause',   () => { if (!intentionalPause) startNoSignal(); });
         video.addEventListener('ended',   startNoSignal);
         video.addEventListener('emptied', startNoSignal);
 
@@ -2094,8 +2120,12 @@
             updateModeVisibility(mode);
             const captionEl = document.getElementById('mode-active-caption');
             if (captionEl) captionEl.textContent = MODE_LABELS[mode] || '';
-            lockedObject = null; // tracking lock is Object Detection-only and meaningless across a mode switch
+            lockedObject = null; // tracking lock is Object Tracking-only and meaningless across a mode switch
             updateTrackingLockUI();
+            // Every other mode needs continuously live video for its own
+            // detection loop — don't leave it paused from the "pause to
+            // select" flow in Object Tracking after switching away.
+            if (video.paused) resumeTrackingVideo();
 
             const floodBtn = document.getElementById('mode-flood-btn');
             const parkingBtn = document.getElementById('mode-parking-btn');
@@ -3387,6 +3417,35 @@
             addAlert(`🔴 Locked onto ${obj.class} — the marker will follow it, including if it leaves and re-enters the frame`, 'safe');
             updateTrackingLockUI();
             updateTrackingMetrics();
+
+            // If the video was paused to make picking the object easier,
+            // resume it now that there's something to actually track.
+            if (video.paused) resumeTrackingVideo();
+        }
+
+        // Lets the user freeze the frame to precisely tap a fast-moving or
+        // small object instead of chasing it live — analyzeLoop() already
+        // no-ops while video.paused, so detections/overlay just hold still;
+        // findObjectAtPoint() still works off the last computed detections.
+        function toggleTrackingPause() {
+            if (video.paused) {
+                resumeTrackingVideo();
+            } else {
+                intentionalPause = true; // must be set before pause() — the 'pause' event fires right after
+                video.pause();
+                document.getElementById('pause-select-label').textContent = 'Resume';
+                document.getElementById('pause-select-btn').firstChild.textContent = '▶ ';
+                addAlert('⏸️ Video paused — tap the object you want to track', 'info');
+            }
+        }
+
+        function resumeTrackingVideo() {
+            if (!video.paused) return;
+            intentionalPause = false;
+            video.play().catch(() => {});
+            document.getElementById('pause-select-label').textContent = 'Pause to Select';
+            document.getElementById('pause-select-btn').firstChild.textContent = '⏸ ';
+            addAlert('▶️ Video resumed', 'info');
         }
 
         function releaseObjectLock() {
