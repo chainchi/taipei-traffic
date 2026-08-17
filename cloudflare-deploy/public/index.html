@@ -260,6 +260,24 @@
             color: var(--text-dim);
         }
 
+        /* Compact row for source/FPS/analysis status inside System Control —
+           same small chips as before, just wrapped and tightened up now that
+           they sit in the sidebar instead of floating on the video. */
+        .source-status-line {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .source-status-line .cam-name,
+        .source-status-line .badge {
+            font-size: 0.56rem;
+            padding: 2px 6px;
+        }
+        .source-status-line .cam-location {
+            font-size: 0.56rem;
+        }
+
         .video-container {
             flex: 1;
             position: relative;
@@ -1454,10 +1472,6 @@
                     <div class="live-dot"></div>
                     LIVE
                 </div>
-                <div class="cam-name" id="cam-name">No Source Loaded</div>
-                <div class="cam-location" id="cam-location"></div>
-                <div class="badge" id="fps-badge">-- FPS</div>
-                <div class="badge" id="analysis-badge">Analysis: OFF</div>
                 <button class="rec-btn" id="rec-btn" onclick="toggleRecording()">
                     <div class="rec-dot"></div>
                     <span id="rec-btn-text">REC</span>
@@ -1513,8 +1527,18 @@
                     <div class="slider-val" id="sens-val">5</div>
                 </div>
 
+                <!-- Source status — moved off the video itself to keep the
+                     video-badges row (LIVE / REC / Pause) minimal; kept as
+                     small/compact as the badges were on the video. -->
+                <div class="source-status-line" style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 10px;">
+                    <div class="cam-name" id="cam-name">No Source Loaded</div>
+                    <div class="cam-location" id="cam-location"></div>
+                    <div class="badge" id="fps-badge">-- FPS</div>
+                    <div class="badge" id="analysis-badge">Analysis: OFF</div>
+                </div>
+
                 <!-- Custom Source -->
-                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;">
+                <div style="margin-top: 10px;">
                     <div class="slider-label" style="margin-bottom: 6px;">Custom Source</div>
                     <div class="custom-input-row" style="margin: 0;">
                         <input class="custom-input" id="url-input" type="text"
