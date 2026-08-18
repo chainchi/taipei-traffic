@@ -4303,7 +4303,11 @@
                 const [, , lbw, lbh] = lockedObject.bbox;
                 const ccx = lockedObject.center.x * scaleX;
                 const ccy = lockedObject.center.y * scaleY;
-                const radius = Math.max(20, Math.hypot(lbw * scaleX, lbh * scaleY) / 2 + 8);
+                // A small marker sitting on the object, not a ring enclosing
+                // it — sized off the object's smaller dimension so it stays
+                // clearly smaller than the object itself either way.
+                const objSize = Math.min(lbw * scaleX, lbh * scaleY);
+                const radius = Math.max(8, Math.min(22, objSize * 0.3));
 
                 octx.save();
                 octx.beginPath();
