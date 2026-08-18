@@ -589,6 +589,11 @@
         .pause-select-btn:hover {
             background: rgba(0, 200, 255, 0.2);
         }
+        .pause-select-btn.active {
+            background: rgba(0, 229, 160, 0.18);
+            border-color: rgba(0, 229, 160, 0.6);
+            color: var(--safe);
+        }
 
         .rec-btn:hover {
             background: rgba(255, 51, 85, 0.15);
@@ -1485,7 +1490,7 @@
                 <button class="pause-select-btn" id="pause-select-btn" onclick="toggleTrackingPause()" data-modes="tracking" style="display:none" title="Pause the video to precisely tap the object you want to track">
                     ⏸ <span id="pause-select-label">Pause</span>
                 </button>
-                <button class="pause-select-btn" id="replay-btn" onclick="replayVideo()" style="display:none" title="Play again from the start">
+                <button class="pause-select-btn" id="replay-btn" onclick="toggleAutoReplay()" title="Auto-replay: automatically restart the video when it ends">
                     🔁 Replay
                 </button>
             </div>
@@ -3531,22 +3536,31 @@
             addAlert('▶️ Video resumed', 'info');
         }
 
-        // Replay — shown whenever the current source (a local file, or a
-        // stream that dropped) reaches its end, in any mode, not just
-        // Object Tracking. Restarts a seekable file from 0; reconnects an
-        // HLS stream from scratch since seeking to 0 wouldn't actually
-        // fetch new segments for a live source.
+        // Auto-Replay — always-visible toggle (next to Pause) in any mode,
+        // not just Object Tracking. While ON, the current source (a local
+        // file, or a stream that dropped) automatically restarts the moment
+        // it ends; while OFF, it just stops as normal. Restarts a seekable
+        // file from 0; reconnects an HLS stream from scratch since seeking
+        // to 0 wouldn't actually fetch new segments for a live source.
         let lastHlsUrl = null;
+        let autoReplayEnabled = false;
+
+        function toggleAutoReplay() {
+            autoReplayEnabled = !autoReplayEnabled;
+            document.getElementById('replay-btn').classList.toggle('active', autoReplayEnabled);
+            addAlert(autoReplayEnabled ? '🔁 Auto-replay ON — will restart automatically when it ends' : '🔁 Auto-replay OFF', 'info');
+            if (autoReplayEnabled && video.ended) replayVideo();
+        }
+
         video.addEventListener('ended', () => {
-            document.getElementById('replay-btn').style.display = 'flex';
-            addAlert('⏹️ Playback ended — press Replay to play it again', 'info');
-        });
-        video.addEventListener('playing', () => {
-            document.getElementById('replay-btn').style.display = 'none';
+            if (autoReplayEnabled) {
+                replayVideo();
+            } else {
+                addAlert('⏹️ Playback ended — toggle 🔁 Replay to restart automatically next time, or reload the source', 'info');
+            }
         });
 
         function replayVideo() {
-            document.getElementById('replay-btn').style.display = 'none';
             if (hls && lastHlsUrl) {
                 playHLS(lastHlsUrl);
                 addAlert('🔁 Reconnecting stream…', 'info');
