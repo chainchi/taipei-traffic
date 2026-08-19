@@ -1147,6 +1147,11 @@
             background: rgba(0, 200, 255, 0.08);
             box-shadow: 0 0 8px var(--glow);
         }
+        .mode-label-zh {
+            opacity: 0.65;
+            font-size: 0.92em;
+            margin-left: 2px;
+        }
 
         /* ── Responsive (Mobile) ── */
         @media (max-width: 768px) {
@@ -1412,10 +1417,24 @@
             color: #fff;
             background: rgba(255, 255, 255, 0.1);
         }
+
+        /* Shared "how to use this mode" help modal — one panel per mode,
+           only the active mode's panel is shown at a time. */
+        .help-header { display:flex; align-items:center; gap:0.6rem; margin-bottom:0.85rem; }
+        .help-icon-box { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+        .help-title { font-family:var(--display); font-size:0.85rem; font-weight:700; color:#fff; }
+        .help-title-zh { font-family:var(--font); font-weight:400; font-size:0.9em; color:var(--text-dim); margin-left:3px; }
+        .help-subtitle { font-size:0.62rem; color:var(--text-dim); }
+        .help-illustration { display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:9px 6px; margin-bottom:0.85rem; flex-wrap:wrap; }
+        .help-chip { border:2px solid var(--accent); border-radius:4px; padding:6px 9px; font-size:0.52rem; color:var(--accent); font-family:var(--display); white-space:nowrap; }
+        .help-arrow { font-size:0.68rem; color:var(--text-dim); text-align:center; line-height:1.15; }
+        .help-steps { display:flex; flex-direction:column; gap:0.55rem; font-size:0.68rem; line-height:1.35; color:var(--text); }
+        .help-step { display:flex; gap:7px; }
     </style>
-    <!-- TensorFlow.js and COCO-SSD for real-time AI vehicle detection (loaded non-blocking with guaranteed execution order) -->
+    <!-- TensorFlow.js core runtime — still needed by MoveNet (Fall Detection)
+         below, even though coco-ssd itself was replaced by the RT-DETR ONNX
+         model (see onnxruntime-web further down). -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js" defer></script>
     <!-- MoveNet pose estimation for Fall Detection (body keypoints, not just bounding boxes) -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js" defer></script>
     <!-- Tesseract.js OCR for License Plate Detection -->
@@ -1454,13 +1473,13 @@
         <div class="video-section" id="video-section">
             <div class="mode-bar">
                 <div class="mode-selector">
-                    <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')" title="Flood Detection"><span class="mode-icon">🌊</span><span class="mode-label"> Flood Detection</span></button>
-                    <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')" title="Parking Watch"><span class="mode-icon">🚗</span><span class="mode-label"> Parking Watch</span></button>
-                    <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')" title="Object Detection"><span class="mode-icon">🔍</span><span class="mode-label"> Object Detection</span></button>
-                    <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')" title="People Detection"><span class="mode-icon">👤</span><span class="mode-label"> People Detection</span></button>
-                    <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')" title="Fall Detection"><span class="mode-icon">🚑</span><span class="mode-label"> Fall Detection</span></button>
-                    <button class="mode-btn" id="mode-plate-btn" onclick="setDetectionMode('plate')" title="License Plate"><span class="mode-icon">🔢</span><span class="mode-label"> License Plate</span></button>
-                    <button class="mode-btn" id="mode-tracking-btn" onclick="setDetectionMode('tracking')" title="Object Tracking"><span class="mode-icon">🎯</span><span class="mode-label"> Object Tracking</span></button>
+                    <button class="mode-btn active" id="mode-flood-btn" onclick="setDetectionMode('flood')" title="Flood Detection 淹水偵測"><span class="mode-icon">🌊</span><span class="mode-label"> Flood Detection <span class="mode-label-zh">淹水偵測</span></span></button>
+                    <button class="mode-btn" id="mode-parking-btn" onclick="setDetectionMode('parking')" title="Parking Watch 停車監控"><span class="mode-icon">🚗</span><span class="mode-label"> Parking Watch <span class="mode-label-zh">停車監控</span></span></button>
+                    <button class="mode-btn" id="mode-object-btn" onclick="setDetectionMode('object')" title="Object Detection 物體偵測"><span class="mode-icon">🔍</span><span class="mode-label"> Object Detection <span class="mode-label-zh">物體偵測</span></span></button>
+                    <button class="mode-btn" id="mode-people-btn" onclick="setDetectionMode('people')" title="People Detection 人員偵測"><span class="mode-icon">👤</span><span class="mode-label"> People Detection <span class="mode-label-zh">人員偵測</span></span></button>
+                    <button class="mode-btn" id="mode-fall-btn" onclick="setDetectionMode('fall')" title="Fall Detection 跌倒偵測"><span class="mode-icon">🚑</span><span class="mode-label"> Fall Detection <span class="mode-label-zh">跌倒偵測</span></span></button>
+                    <button class="mode-btn" id="mode-plate-btn" onclick="setDetectionMode('plate')" title="License Plate 車牌辨識"><span class="mode-icon">🔢</span><span class="mode-label"> License Plate <span class="mode-label-zh">車牌辨識</span></span></button>
+                    <button class="mode-btn" id="mode-tracking-btn" onclick="setDetectionMode('tracking')" title="Object Tracking 物體追蹤"><span class="mode-icon">🎯</span><span class="mode-label"> Object Tracking <span class="mode-label-zh">物體追蹤</span></span></button>
                 </div>
                 <div class="mode-active-caption" id="mode-active-caption">🌊 Flood Detection</div>
             </div>
@@ -1492,6 +1511,9 @@
                 </button>
                 <button class="pause-select-btn" id="replay-btn" onclick="toggleAutoReplay()" title="Auto-replay: automatically restart the video when it ends">
                     🔁 Replay
+                </button>
+                <button class="pause-select-btn" id="mode-help-btn" onclick="showModeHelpModal()" style="padding: 3px 9px;" title="How to use this mode">
+                    ❓
                 </button>
             </div>
 
@@ -1560,7 +1582,7 @@
 
                 <!-- Email Alerts Subscription Row — every mode except Object
                      Detection can trigger an email alert. -->
-                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;" data-modes="flood,parking,people,fall,plate">
+                <div style="margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px;" data-modes="flood,parking,people,fall,plate,tracking">
                     <div class="slider-label" style="margin-bottom: 6px; width: auto; white-space: nowrap;">Email Alerts Subscription</div>
                     <div class="custom-input-row" style="margin: 0;">
                         <input class="custom-input" id="subscriber-email-input" type="email"
@@ -1652,7 +1674,7 @@
                      lock follows the object across the whole frame), so this
                      is hidden there rather than showing a control for a zone
                      that's no longer drawn on the video. -->
-                <div data-modes="flood,parking,object,people,fall,plate">
+                <div data-modes="flood,parking,object,people,fall,plate,tracking">
                     <div class="section-heading">Monitoring Zone</div>
                     <div class="zone-controls">
                         <div class="zone-btn active" id="zone-toggle-btn" onclick="toggleZone()">
@@ -2054,8 +2076,6 @@
         let lastNotifSentTime = 0; // Cooldown to avoid alert spamming
 
         // Parking AI object detection config
-        let cocoModel = null;
-        let modelLoading = false;
         let parkingFrameCount = 0;
         let lastDetectedVehicles = [];
 
@@ -2074,6 +2094,12 @@
         let trackingFrameCount = 0;
         let lockedObject = null; // { class, bbox, center:{x,y}, signature:{r,g,b}, lost, lostSince }
         const OBJECT_LOCK_COLOR_MISMATCH_THRESHOLD = 70; // RGB euclidean distance, 0-441
+        // Zone doubles as an "alert area" in this mode — an email fires the
+        // moment the locked object's position transitions from outside to
+        // inside it. Edge-triggered like people/fall mode's alerts, so
+        // leaving and re-entering fires again rather than emailing every frame.
+        let lastLockedInZone = false;
+        let trackingEmailsSentCount = 0;
 
         // People Detection mode (zone-gated person detection + email alerts)
         let peopleFrameCount = 0;
@@ -2110,6 +2136,18 @@
         const PLATE_DETECTOR_MODEL_URL = '/models/yolo-v9-s-608-license-plates-end2end.onnx';
         const PLATE_DETECTOR_IMG_SIZE = 608;
 
+        // General object detector — RT-DETR-R18 (Apache 2.0, onnx-community/rtdetr_r18vd),
+        // replacing coco-ssd for meaningfully better recall/accuracy on the
+        // same standard 80 COCO classes. Used by Object Detection, Parking,
+        // People, and Object Tracking modes wherever they previously called
+        // cocoModel.detect(video).
+        let rtDetrModel = null;
+        let rtDetrModelLoading = false;
+        const RTDETR_MODEL_URL = '/models/rtdetr-r18vd-coco.onnx';
+        const RTDETR_IMG_SIZE = 640;
+        const RTDETR_SCORE_THRESHOLD = 0.5;
+        const COCO_LABELS = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"];
+
         // Recording state
         let isRecording = false;
         let mediaRecorder = null;
@@ -2145,13 +2183,13 @@
         }
 
         const MODE_LABELS = {
-            flood: '🌊 Flood Detection',
-            parking: '🚗 Parking Watch',
-            object: '🔍 Object Detection',
-            people: '👤 People Detection',
-            fall: '🚑 Fall Detection',
-            plate: '🔢 License Plate',
-            tracking: '🎯 Object Tracking'
+            flood: '🌊 Flood Detection 淹水偵測',
+            parking: '🚗 Parking Watch 停車監控',
+            object: '🔍 Object Detection 物體偵測',
+            people: '👤 People Detection 人員偵測',
+            fall: '🚑 Fall Detection 跌倒偵測',
+            plate: '🔢 License Plate 車牌辨識',
+            tracking: '🎯 Object Tracking 物體追蹤'
         };
 
         function setDetectionMode(mode) {
@@ -2188,11 +2226,11 @@
                 addAlert('🔄 Switched to Flood Detection Mode', 'info');
             } else if (mode === 'parking') {
                 addAlert('🔄 Switched to Parking Watch Mode — initializing AI...', 'info');
-                loadCocoModel(); // Load TensorFlow model
+                loadRtDetrModel();
                 scheduleAutoBaseline();
             } else if (mode === 'object') {
                 addAlert('🔄 Switched to Object Detection Mode — initializing AI... Draw a zone to choose the detection area.', 'info');
-                loadCocoModel();
+                loadRtDetrModel();
                 lastDetectedObjects = [];
                 lastObjectZoneCount = 0;
                 lastObjectClassSet = '';
@@ -2200,7 +2238,7 @@
                 updateColors(0, 0, 0, 0);
             } else if (mode === 'people') {
                 addAlert('🔄 Switched to People Detection Mode — initializing AI... Draw a zone to choose the detection area. Email alerts fire when someone enters it.', 'info');
-                loadCocoModel();
+                loadRtDetrModel();
                 lastDetectedPeople = [];
                 lastPeopleZoneCount = 0;
                 lastPeopleAlertState = false;
@@ -2231,14 +2269,20 @@
                 lastPlateCheckTime = 0;
                 updateColors(0, 0, 0, 0);
             } else {
-                addAlert('🎯 Switched to Object Tracking Mode — tap any detected object to lock onto it. The lock keeps watching for it even if it leaves the frame.', 'info');
-                loadCocoModel();
+                addAlert('🎯 Switched to Object Tracking Mode — tap any detected object to lock onto it. The lock keeps watching for it even if it leaves the frame. Draw a zone below to get an email alert when it enters that area.', 'info');
+                loadRtDetrModel();
                 lastDetectedObjects = [];
                 lockedObject = null;
                 trackingFrameCount = 0;
+                lastLockedInZone = false;
+                trackingEmailsSentCount = 0;
                 updateColors(0, 0, 0, 0);
                 updateTrackingLockUI();
             }
+
+            // First time ever entering this particular mode? Show its help
+            // panel automatically — afterward it's just the ❓ button.
+            if (!localStorage.getItem('help_seen_' + mode)) showModeHelpModal();
 
             // Update Sidebar UI Titles and Labels based on Mode
             const gaugeTitle = document.querySelector('.risk-gauge .section-heading');
@@ -2307,7 +2351,7 @@
                 if (gaugeUnit) gaugeUnit.textContent = 'LOCK';
                 if (mWaterLabel) mWaterLabel.textContent = 'Target Class';
                 if (mReflectLabel) mReflectLabel.textContent = 'State';
-                if (mChangeLabel) mChangeLabel.textContent = 'Frame Count';
+                if (mChangeLabel) mChangeLabel.textContent = 'Emails Sent';
                 if (mTurbidLabel) mTurbidLabel.textContent = 'Objects Seen';
                 document.getElementById('risk-label').textContent = 'NO TARGET';
                 document.getElementById('risk-label').className = 'risk-label safe';
@@ -3230,16 +3274,16 @@
                 prevFrameData = currentFrame;
                 frameDelta = Math.min(100, pMotion * 8); // Amplify motion signals
 
-                if (cocoModel) {
+                if (rtDetrModel) {
                     // 🧠 AI DEEP LEARNING DETECTION 🧠
                     parkingFrameCount++;
                     if (parkingFrameCount % 10 === 0) {
-                        cocoModel.detect(video).then(predictions => {
-                            lastDetectedVehicles = predictions.filter(p => 
-                                ['car', 'truck', 'bus', 'motorcycle', 'bicycle'].includes(p.class) &&
+                        detectObjectsRtDetr(video).then(predictions => {
+                            lastDetectedVehicles = predictions.filter(p =>
+                                ['car', 'truck', 'bus', 'motorbike', 'bicycle'].includes(p.class) &&
                                 p.score > 0.40
                             );
-                        }).catch(e => console.error("Coco-ssd error:", e));
+                        }).catch(e => console.error("RT-DETR error:", e));
                     }
 
                     // Spatial Overlap Test
@@ -3656,7 +3700,7 @@
 
             document.getElementById('m-water-pct').textContent = lockedObject ? lockedObject.class : '—';
             document.getElementById('m-reflect').textContent = lockedObject ? (lockedObject.lost ? 'searching' : 'tracking') : 'none';
-            document.getElementById('m-change').textContent = trackingFrameCount;
+            document.getElementById('m-change').textContent = trackingEmailsSentCount;
             document.getElementById('m-turbidity').textContent = lastDetectedObjects.length;
 
             document.getElementById('bar-water').style.width = (lockedObject && !lockedObject.lost ? 100 : 0) + '%';
@@ -3666,29 +3710,53 @@
         }
 
         async function runObjectTrackingFrame() {
-            if (!cocoModel) return;
+            if (!rtDetrModel) return;
 
             trackingFrameCount++;
             if (trackingFrameCount % 5 !== 0) return;
 
             try {
-                const predictions = await cocoModel.detect(video);
+                const predictions = await detectObjectsRtDetr(video);
                 lastDetectedObjects = predictions.filter(p => p.score > 0.5);
                 updateObjectLock();
                 updateTrackingMetrics();
+                await checkTrackingZoneAlert();
             } catch (e) {
                 console.error('Object tracking detection error:', e);
             }
         }
 
+        // Fires an email the moment the locked object's position enters the
+        // drawn alert area — only while actually locked and visible (not
+        // "lost"), and only once per entry (resets when it leaves, or when
+        // there's no lock/zone to check).
+        async function checkTrackingZoneAlert() {
+            const canCheck = lockedObject && !lockedObject.lost && zoneEnabled && zonePoints.length >= 3;
+            if (!canCheck) {
+                lastLockedInZone = false;
+                return;
+            }
+
+            const nx = lockedObject.center.x / video.videoWidth;
+            const ny = lockedObject.center.y / video.videoHeight;
+            const inZone = pointInPolygon(nx, ny, zonePoints);
+
+            if (inZone && !lastLockedInZone) {
+                addAlert(`🎯🚨 Locked ${lockedObject.class} entered the alert area!`, 'danger');
+                const sent = await triggerNotification(100, `TRACKED OBJECT ENTERED ZONE: ${lockedObject.class}`);
+                if (sent) trackingEmailsSentCount++;
+            }
+            lastLockedInZone = inZone;
+        }
+
         async function runObjectDetectionFrame() {
-            if (!cocoModel) return;
+            if (!rtDetrModel) return;
 
             objectFrameCount++;
             if (objectFrameCount % 5 !== 0) return;
 
             try {
-                const predictions = await cocoModel.detect(video);
+                const predictions = await detectObjectsRtDetr(video);
                 lastDetectedObjects = predictions.filter(p => p.score > 0.5);
                 updateObjectLock();
 
@@ -3759,13 +3827,13 @@
         }
 
         async function runPeopleDetectionFrame() {
-            if (!cocoModel) return;
+            if (!rtDetrModel) return;
 
             peopleFrameCount++;
             if (peopleFrameCount % 5 !== 0) return;
 
             try {
-                const predictions = await cocoModel.detect(video);
+                const predictions = await detectObjectsRtDetr(video);
                 lastDetectedPeople = predictions.filter(p => p.class === 'person' && p.score > 0.5);
 
                 const vWidth = video.videoWidth, vHeight = video.videoHeight;
@@ -3982,6 +4050,108 @@
             } finally {
                 plateDetectorLoading = false;
             }
+        }
+
+        async function loadRtDetrModel() {
+            if (rtDetrModel || rtDetrModelLoading) return;
+            rtDetrModelLoading = true;
+            addAlert('🧠 Loading object detector model…', 'info');
+            try {
+                await waitForOrtLibrary();
+                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+                rtDetrModel = await ort.InferenceSession.create(RTDETR_MODEL_URL, {
+                    executionProviders: ['wasm']
+                });
+                addAlert('🧠 Object detector model loaded successfully!', 'safe');
+            } catch (err) {
+                console.error('Failed to load RT-DETR model:', err);
+                addAlert('⚠️ Object detector model failed to load.', 'warn');
+                rtDetrModel = null;
+            } finally {
+                rtDetrModelLoading = false;
+            }
+        }
+
+        // Mirrors cocoModel.detect()'s return shape — [{class, score, bbox:[x,y,w,h]}]
+        // in video-pixel space — so call sites elsewhere don't need to change.
+        async function detectObjectsRtDetr(video) {
+            if (!rtDetrModel) return [];
+            const vw = video.videoWidth, vh = video.videoHeight;
+            if (!vw || !vh) return [];
+            const size = RTDETR_IMG_SIZE;
+
+            // Direct resize (no letterbox/padding) — matches this model's own
+            // preprocessor_config.json (do_pad: false), which trains/expects
+            // a plain non-aspect-preserving resize to 640x640.
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, vw, vh, 0, 0, size, size);
+
+            const { data } = ctx.getImageData(0, 0, size, size);
+            const plane = size * size;
+            const chw = new Float32Array(3 * plane);
+            // Rescale to [0,1] only — this model's preprocessor_config.json
+            // has do_normalize:false, so no ImageNet mean/std subtraction.
+            for (let i = 0; i < plane; i++) {
+                const px = i * 4;
+                chw[i] = data[px] / 255;
+                chw[plane + i] = data[px + 1] / 255;
+                chw[2 * plane + i] = data[px + 2] / 255;
+            }
+            const tensor = new ort.Tensor('float32', chw, [1, 3, size, size]);
+
+            const inputName = rtDetrModel.inputNames[0];
+            const results = await rtDetrModel.run({ [inputName]: tensor });
+
+            // Identify the two outputs by shape rather than name — logits'
+            // last dim is num_classes (80, no background slot: this model
+            // uses focal loss / sigmoid scoring, confirmed against the
+            // official HF RTDetrImageProcessor.post_process_object_detection
+            // reference, use_focal_loss=True path), pred_boxes' last dim is
+            // always 4 (cx,cy,w,h).
+            let logitsT = null, boxesT = null;
+            for (const name of rtDetrModel.outputNames) {
+                const t = results[name];
+                const lastDim = t.dims[t.dims.length - 1];
+                if (lastDim === 4) boxesT = t;
+                else if (lastDim > 4) logitsT = t;
+            }
+            if (!logitsT || !boxesT) {
+                console.error('RT-DETR: could not identify logits/boxes outputs from', rtDetrModel.outputNames, results);
+                return [];
+            }
+
+            const [, numBoxes, numClasses] = logitsT.dims;
+            const detections = [];
+
+            for (let j = 0; j < numBoxes; j++) {
+                const logitRow = logitsT.data.subarray(j * numClasses, (j + 1) * numClasses);
+                let maxIdx = 0, maxVal = -Infinity;
+                for (let k = 0; k < numClasses; k++) {
+                    if (logitRow[k] > maxVal) { maxVal = logitRow[k]; maxIdx = k; }
+                }
+                // sigmoid is monotonic, so argmax(logits) === argmax(sigmoid(logits))
+                const score = 1 / (1 + Math.exp(-maxVal));
+                if (score < RTDETR_SCORE_THRESHOLD) continue;
+
+                // pred_boxes are normalized (cx, cy, w, h) in [0,1] — convert
+                // to pixel-space (x, y, w, h) matching coco-ssd's bbox format.
+                const bIdx = j * 4;
+                const cx = boxesT.data[bIdx], cy = boxesT.data[bIdx + 1];
+                const bw = boxesT.data[bIdx + 2], bh = boxesT.data[bIdx + 3];
+                const x = (cx - bw / 2) * vw;
+                const y = (cy - bh / 2) * vh;
+
+                detections.push({
+                    class: COCO_LABELS[maxIdx] || `class_${maxIdx}`,
+                    score,
+                    bbox: [x, y, bw * vw, bh * vh]
+                });
+            }
+
+            return detections;
         }
 
         // Letterbox: resize preserving aspect ratio, pad with gray (114,114,114)
@@ -4289,7 +4459,7 @@
         // Object Tracking's whole overlay — no monitoring zone involved, just
         // the regular detection boxes plus the lock circle on top of them.
         function drawTrackingOverlay(cw, ch) {
-            if (!cocoModel || (lastDetectedObjects.length === 0 && !lockedObject)) return;
+            if (!rtDetrModel || (lastDetectedObjects.length === 0 && !lockedObject)) return;
 
             const scaleX = cw / video.videoWidth;
             const scaleY = ch / video.videoHeight;
@@ -4343,15 +4513,9 @@
             octx.clearRect(0, 0, overlay.width, overlay.height);
             drawTimestamp();
 
-            // Object Tracking doesn't use a monitoring zone at all — the
-            // lock follows the object anywhere in frame — so it skips the
-            // zone frame/vertices/label entirely, independent of zoneEnabled
-            // or how many zone points happen to exist.
-            if (detectionMode === 'tracking') {
-                drawTrackingOverlay(overlay.width, overlay.height);
-                return;
-            }
-
+            // Object Tracking uses the zone again, now as an "alert area" —
+            // an email fires when the locked object's position enters it
+            // (see updateObjectLock's caller in runObjectTrackingFrame).
             if (!zoneEnabled || zonePoints.length < 2) return;
 
             const cw = overlay.width, ch = overlay.height;
@@ -4461,7 +4625,7 @@
             }
 
             // ── AI Bounding Boxes Drawing ──
-            if (detectionMode === 'parking' && cocoModel && lastDetectedVehicles.length > 0) {
+            if (detectionMode === 'parking' && rtDetrModel && lastDetectedVehicles.length > 0) {
                 lastDetectedVehicles.forEach(veh => {
                     const [bx, by, bw, bh] = veh.bbox;
                     const scaleX = cw / video.videoWidth;
@@ -4489,11 +4653,13 @@
                     octx.fillStyle = '#ffffff';
                     octx.fillText(tag, cx + 5, cy - 5);
                 });
-            } else if (detectionMode === 'object' && cocoModel && lastDetectedObjects.length > 0) {
+            } else if (detectionMode === 'object' && rtDetrModel && lastDetectedObjects.length > 0) {
                 const scaleX = cw / video.videoWidth;
                 const scaleY = ch / video.videoHeight;
                 drawObjectBoxes(scaleX, scaleY);
-            } else if (detectionMode === 'people' && cocoModel && lastDetectedPeople.length > 0) {
+            } else if (detectionMode === 'tracking' && rtDetrModel && (lastDetectedObjects.length > 0 || lockedObject)) {
+                drawTrackingOverlay(cw, ch);
+            } else if (detectionMode === 'people' && rtDetrModel && lastDetectedPeople.length > 0) {
                 lastDetectedPeople.forEach(person => {
                     const [bx, by, bw, bh] = person.bbox;
                     const scaleX = cw / video.videoWidth;
@@ -5025,7 +5191,8 @@
                 : detectionMode === 'parking' ? 'parking watch'
                 : detectionMode === 'people' ? 'people detection'
                 : detectionMode === 'fall' ? 'fall detection'
-                : 'license plate';
+                : detectionMode === 'plate' ? 'license plate'
+                : 'object tracking';
             addAlert(`🚀 Requesting ${labelMode} alert email notification…`, 'info');
 
             let snapshotBase64 = null;
@@ -5074,40 +5241,6 @@
             }
         }
 
-        function waitForCocoSsdLibrary(timeoutMs = 15000) {
-            if (typeof cocoSsd !== 'undefined') return Promise.resolve();
-            // The coco-ssd/tfjs <script defer> tags may not have executed yet if this
-            // runs from the page's initial synchronous script (deferred scripts always
-            // run after inline scripts finish, regardless of document order) — poll
-            // instead of failing immediately.
-            return new Promise((resolve, reject) => {
-                const start = Date.now();
-                const check = () => {
-                    if (typeof cocoSsd !== 'undefined') return resolve();
-                    if (Date.now() - start > timeoutMs) return reject(new Error('coco-ssd library failed to load in time'));
-                    setTimeout(check, 100);
-                };
-                check();
-            });
-        }
-
-        async function loadCocoModel() {
-            if (cocoModel || modelLoading) return;
-            modelLoading = true;
-            addAlert('🧠 Loading COCO-SSD Object Detection AI model…', 'info');
-            try {
-                await waitForCocoSsdLibrary();
-                cocoModel = await cocoSsd.load();
-                addAlert('🧠 COCO-SSD AI model loaded successfully!', 'safe');
-            } catch (err) {
-                console.error("Failed to load COCO-SSD:", err);
-                addAlert('⚠️ AI model failed to load. Falling back to pixel analysis.', 'warn');
-                cocoModel = null;
-            } finally {
-                modelLoading = false;
-            }
-        }
-
         function toggleAdvancedTools() {
             const body = document.body;
             const btn = document.getElementById('advanced-toggle-btn');
@@ -5135,6 +5268,40 @@
 
         // ── Feedback Modal Logic ──
         const SHEETS_FEEDBACK_API = 'https://script.google.com/macros/s/AKfycbyzZ6elY9n_Bnn6gRVukIYZ0TSwfscJkKLLhpuSdR-FvK8UQ0YkjTL5xtSSMm6SckkOYg/exec';
+
+        // Shown automatically the first time anyone ever enters Object
+        // Tracking mode (localStorage-gated), and reopenable any time via
+        // the small ❓ button next to the mode's other video controls.
+        // Shows the help panel matching whichever mode is currently active —
+        // one modal, seven pre-built panels, only the matching one visible.
+        function showModeHelpModal() {
+            const modal = document.getElementById('mode-help-modal');
+            if (!modal) return;
+            document.querySelectorAll('.help-panel').forEach(panel => {
+                panel.style.display = panel.dataset.helpMode === detectionMode ? 'block' : 'none';
+            });
+            modal.style.display = 'flex';
+            modal.classList.add('active');
+        }
+
+        function closeModeHelpModal() {
+            const modal = document.getElementById('mode-help-modal');
+            if (!modal) return;
+            modal.style.display = 'none';
+            modal.classList.remove('active');
+            localStorage.setItem('help_seen_' + detectionMode, '1');
+        }
+
+        function initModeHelpModal() {
+            const modal = document.getElementById('mode-help-modal');
+            const closeBtn = document.getElementById('btn-close-mode-help');
+            if (closeBtn) closeBtn.addEventListener('click', closeModeHelpModal);
+            if (modal) {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) closeModeHelpModal();
+                });
+            }
+        }
 
         function initFeedbackModal() {
             const modal = document.getElementById('feedback-modal');
@@ -5261,14 +5428,158 @@
         loadTargetPlateSettings();
         updateModeVisibility(detectionMode);
         loadVisitorCounter();
-        // Defer feedback modal init until DOM is fully parsed (modal HTML is below this script)
+        // Defer modal init until DOM is fully parsed (modal HTML is below this script)
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initFeedbackModal);
+            document.addEventListener('DOMContentLoaded', initModeHelpModal);
         } else {
             requestAnimationFrame(initFeedbackModal);
+            requestAnimationFrame(initModeHelpModal);
         }
         addAlert('VisionWatch AI initialized — enter a source below to begin', 'info');
     </script>
+
+    <!-- ── Object Tracking Help Modal (strictly hidden by default) ── -->
+    <div class="modal-overlay" id="mode-help-modal" style="display: none !important;">
+        <div class="modal-card" style="max-width: 340px;">
+            <button class="btn-close-modal" id="btn-close-mode-help" aria-label="Close">✕</button>
+            <div style="padding: 1.1rem;">
+
+                <!-- 🌊 Flood Detection -->
+                <div class="help-panel" data-help-mode="flood" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(0,200,255,0.15);">🌊</div>
+                        <div><div class="help-title">Flood Detection <span class="help-title-zh">淹水偵測</span></div><div class="help-subtitle">Watches for standing water in your zone<br>偵測您監控區域內的積水</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div style="width:64px; height:38px; border:2px dashed var(--accent); border-radius:4px; position:relative; overflow:hidden;">
+                            <div style="position:absolute; bottom:0; left:0; right:0; height:45%; background:linear-gradient(0deg, rgba(0,170,255,0.55), transparent);"></div>
+                        </div>
+                        <div class="help-arrow">色彩/反光<br>分析</div>
+                        <div class="help-chip" style="border-color:#ff3355; color:#ff3355;">RISK 68% 風險</div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>📐</span><span>Draw a zone over the road/ground surface you want to monitor.</span></div>
+                        <div class="help-step"><span>🎚</span><span>Adjust <strong>Sensitivity</strong> if it's triggering too often or too rarely.</span></div>
+                        <div class="help-step"><span>📸</span><span>On a clear day, capture a <strong>Dry Baseline</strong> (Advanced Settings) for better accuracy.</span></div>
+                        <div class="help-step"><span>📧</span><span>Set your email to get alerted when risk crosses into High/Critical.</span></div>
+                    </div>
+                </div>
+
+                <!-- 🚗 Parking Watch -->
+                <div class="help-panel" data-help-mode="parking" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(0,229,160,0.15);">🚗</div>
+                        <div><div class="help-title">Parking Watch <span class="help-title-zh">停車監控</span></div><div class="help-subtitle">Flags a vehicle that stays parked in your zone<br>標記長時間停留在監控區域內的車輛</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div class="help-chip">CAR</div>
+                        <div class="help-arrow">⏱ 持續<br>靜止</div>
+                        <div class="help-chip" style="border-color:#ff3355; color:#ff3355;">PARKED 已停妥</div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>📐</span><span>Draw a zone over the parking spot(s) you want to watch.</span></div>
+                        <div class="help-step"><span>⏱</span><span>A vehicle has to stay still in the zone for a sustained period to count — brief pass-throughs don't trigger it.</span></div>
+                        <div class="help-step"><span>📧</span><span>Set your email to get alerted the moment a spot becomes occupied.</span></div>
+                    </div>
+                </div>
+
+                <!-- 🔍 Object Detection -->
+                <div class="help-panel" data-help-mode="object" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(0,200,255,0.15);">🔍</div>
+                        <div><div class="help-title">Object Detection <span class="help-title-zh">物體偵測</span></div><div class="help-subtitle">Labels everything it recognizes in frame<br>標示畫面中辨識到的所有物體</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div class="help-chip">CAR 90%</div>
+                        <div class="help-chip">BAG 75%</div>
+                        <div class="help-chip">DOG 82%</div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>📐</span><span>Draw a zone to focus on a specific area, or leave it covering the whole frame.</span></div>
+                        <div class="help-step"><span>🏷</span><span>Every recognized object — cars, people, animals, bags, and ~80 other everyday object types — gets a labeled box.</span></div>
+                        <div class="help-step"><span>ℹ️</span><span>This mode is for general awareness only — it doesn't send email alerts.</span></div>
+                    </div>
+                </div>
+
+                <!-- 👤 People Detection -->
+                <div class="help-panel" data-help-mode="people" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(255,51,85,0.15);">👤</div>
+                        <div><div class="help-title">People Detection <span class="help-title-zh">人員偵測</span></div><div class="help-subtitle">Alerts the moment someone enters your zone<br>有人進入監控區域時立即警示</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div class="help-chip">PERSON 88%</div>
+                        <div class="help-arrow">→</div>
+                        <div class="help-chip" style="border-color:#ff3355; color:#ff3355;">🚨 ALERT 警報</div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>📐</span><span>Draw a zone over the area you want to watch for people.</span></div>
+                        <div class="help-step"><span>🚨</span><span>An alert fires as soon as someone's detected inside the zone.</span></div>
+                        <div class="help-step"><span>📧</span><span>Set your email to get notified when it happens.</span></div>
+                    </div>
+                </div>
+
+                <!-- 🚑 Fall Detection -->
+                <div class="help-panel" data-help-mode="fall" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(255,51,85,0.15);">🚑</div>
+                        <div><div class="help-title">Fall Detection <span class="help-title-zh">跌倒偵測</span></div><div class="help-subtitle">Watches body pose for a possible collapse<br>偵測姿態以判斷是否有人跌倒</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div class="help-chip">🧍 standing 站立</div>
+                        <div class="help-arrow">→</div>
+                        <div class="help-chip" style="border-color:#ff3355; color:#ff3355;">🛌 fallen 跌倒</div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>📐</span><span>Draw a zone over the area to monitor.</span></div>
+                        <div class="help-step"><span>🧍➡🛌</span><span>Uses body-pose tracking, not just a box — a person who appears to be lying down/collapsed triggers an alert.</span></div>
+                        <div class="help-step"><span>📧</span><span>Set your email — this mode is meant for emergencies, so alerts fire immediately, no cooldown delay.</span></div>
+                    </div>
+                </div>
+
+                <!-- 🔢 License Plate -->
+                <div class="help-panel" data-help-mode="plate" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(0,200,255,0.15);">🔢</div>
+                        <div><div class="help-title">License Plate <span class="help-title-zh">車牌辨識</span></div><div class="help-subtitle">Watches for one specific plate<br>監控特定車牌號碼</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div class="help-chip">ABC-1234</div>
+                        <div class="help-arrow">OCR<br>辨識</div>
+                        <div class="help-chip" style="border-color:var(--safe); color:var(--safe);">✅ MATCH 相符</div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>✍️</span><span>Type the plate you're watching for into <strong>Target License Plate</strong> and save it.</span></div>
+                        <div class="help-step"><span>📐</span><span>Draw a zone over the road area plates will pass through.</span></div>
+                        <div class="help-step"><span>🔎</span><span>OCR reads plates from the video feed — a close, front-facing angle works best.</span></div>
+                        <div class="help-step"><span>📧</span><span>Set your email to get notified the moment there's a match.</span></div>
+                    </div>
+                </div>
+
+                <!-- 🎯 Object Tracking -->
+                <div class="help-panel" data-help-mode="tracking" style="display:none;">
+                    <div class="help-header">
+                        <div class="help-icon-box" style="background:rgba(255,51,85,0.15);">🎯</div>
+                        <div><div class="help-title">Object Tracking <span class="help-title-zh">物體追蹤</span></div><div class="help-subtitle">Lock onto anything, follow it automatically<br>鎖定任何物體，自動持續追蹤</div></div>
+                    </div>
+                    <div class="help-illustration">
+                        <div class="help-chip">CAR 90%</div>
+                        <div class="help-arrow">👆 點選<br>方框</div>
+                        <div style="width:22px; height:22px; border-radius:50%; border:3px solid #ff3355; box-shadow:0 0 8px rgba(255,51,85,0.6);"></div>
+                    </div>
+                    <div class="help-steps">
+                        <div class="help-step"><span>👆</span><span>Tap any detected object's box to lock onto it — a small red circle marks it and follows it as it moves.</span></div>
+                        <div class="help-step"><span>⏸</span><span>Object hard to tap (small or fast-moving)? Press <strong>Pause</strong> to freeze the frame first, then tap precisely.</span></div>
+                        <div class="help-step"><span>👻</span><span>If it leaves the frame or gets blocked, the lock doesn't cancel — it waits ("searching…") and reconnects automatically when it returns.</span></div>
+                        <div class="help-step"><span>📐</span><span>Draw a zone to turn it into an <strong>alert area</strong> — set your email below and get notified the moment your locked object enters it.</span></div>
+                        <div class="help-step"><span>🔁</span><span>Toggle <strong>Replay</strong> to auto-restart the video whenever it ends. <strong>Release Lock</strong> or tap empty space to stop tracking.</span></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
 
     <!-- ── Feedback / Suggestion Modal (strictly hidden by default) ── -->
     <div class="modal-overlay" id="feedback-modal" style="display: none !important;">
