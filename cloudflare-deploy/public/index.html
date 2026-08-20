@@ -2145,7 +2145,12 @@
         let rtDetrModelLoading = false;
         const RTDETR_MODEL_URL = '/models/rtdetr-r18vd-coco.onnx';
         const RTDETR_IMG_SIZE = 640;
-        const RTDETR_SCORE_THRESHOLD = 0.5;
+        // 0.5 is RT-DETR's official default, but that's tuned for softmax-style
+        // scores from the non-focal-loss head. This model's sigmoid scores run
+        // lower for small/ambiguous objects (e.g. a distant ball) than softmax
+        // would, so a lower bar here catches more real detections at the cost
+        // of slightly more false positives.
+        const RTDETR_SCORE_THRESHOLD = 0.3;
         const COCO_LABELS = ["person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "sofa", "pottedplant", "bed", "diningtable", "toilet", "tvmonitor", "laptop", "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"];
 
         // Recording state
@@ -4059,6 +4064,16 @@
             try {
                 await waitForOrtLibrary();
                 ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+                // Run WASM inference in a Worker instead of the main thread,
+                // so a detection pass doesn't block video rendering/canvas
+                // draws while it runs. Multi-threading itself only kicks in
+                // when the page is cross-origin isolated (see _headers) —
+                // numThreads is a no-op otherwise and onnxruntime-web quietly
+                // falls back to a single thread.
+                ort.env.wasm.proxy = true;
+                if (self.crossOriginIsolated) {
+                    ort.env.wasm.numThreads = Math.min(navigator.hardwareConcurrency || 4, 4);
+                }
                 rtDetrModel = await ort.InferenceSession.create(RTDETR_MODEL_URL, {
                     executionProviders: ['wasm']
                 });
@@ -4074,18 +4089,31 @@
 
         // Mirrors cocoModel.detect()'s return shape — [{class, score, bbox:[x,y,w,h]}]
         // in video-pixel space — so call sites elsewhere don't need to change.
+        // Guards against overlapping inference calls: analyzeLoop() fires on
+        // every requestAnimationFrame tick without awaiting the per-mode frame
+        // function, so without this a slow RT-DETR pass (much heavier than the
+        // old coco-ssd) lets new calls stack up faster than old ones finish,
+        // starving the CPU and making detection feel like it's crawling.
+        let rtDetrBusy = false;
+        let rtDetrCanvas = null;
+
         async function detectObjectsRtDetr(video) {
-            if (!rtDetrModel) return [];
+            if (!rtDetrModel || rtDetrBusy) return [];
             const vw = video.videoWidth, vh = video.videoHeight;
             if (!vw || !vh) return [];
+            rtDetrBusy = true;
+            try {
             const size = RTDETR_IMG_SIZE;
 
             // Direct resize (no letterbox/padding) — matches this model's own
             // preprocessor_config.json (do_pad: false), which trains/expects
             // a plain non-aspect-preserving resize to 640x640.
-            const canvas = document.createElement('canvas');
-            canvas.width = size;
-            canvas.height = size;
+            if (!rtDetrCanvas) {
+                rtDetrCanvas = document.createElement('canvas');
+                rtDetrCanvas.width = size;
+                rtDetrCanvas.height = size;
+            }
+            const canvas = rtDetrCanvas;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(video, 0, 0, vw, vh, 0, 0, size, size);
 
@@ -4152,6 +4180,9 @@
             }
 
             return detections;
+            } finally {
+                rtDetrBusy = false;
+            }
         }
 
         // Letterbox: resize preserving aspect ratio, pad with gray (114,114,114)
