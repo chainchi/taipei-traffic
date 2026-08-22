@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>笑臉按鈕</title>
+<style>
+    * { box-sizing: border-box; }
+
+    body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #111;
+        overflow: hidden;
+        font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    .stage {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    button.red-button {
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        border: none;
+        background: radial-gradient(circle at 35% 30%, #ff6b6b, #d0201f 60%, #8f0f0f 100%);
+        box-shadow:
+            0 10px 0 #6e0a0a,
+            0 14px 20px rgba(0, 0, 0, 0.5);
+        cursor: pointer;
+        color: #fff;
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        transition: transform 0.08s ease, box-shadow 0.08s ease;
+        user-select: none;
+    }
+
+    button.red-button:active,
+    button.red-button.pressed {
+        transform: translateY(10px);
+        box-shadow:
+            0 0 0 #6e0a0a,
+            0 4px 10px rgba(0, 0, 0, 0.5);
+    }
+
+    .smiley {
+        position: absolute;
+        font-size: 100px;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(0) scale(0.2);
+    }
+
+    .smiley.pop {
+        animation: pop-out 0.9s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    @keyframes pop-out {
+        0% {
+            opacity: 0;
+            transform: translateY(20px) scale(0.2) rotate(-15deg);
+        }
+        40% {
+            opacity: 1;
+            transform: translateY(-160px) scale(1.15) rotate(8deg);
+        }
+        70% {
+            transform: translateY(-190px) scale(1) rotate(-4deg);
+        }
+        100% {
+            opacity: 0;
+            transform: translateY(-260px) scale(0.9) rotate(0deg);
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="stage">
+    <span id="smiley" class="smiley">🌝</span>
+    <button id="btn" class="red-button">按我</button>
+</div>
+
+<script>
+    const btn = document.getElementById('btn');
+    const smiley = document.getElementById('smiley');
+
+    btn.addEventListener('click', () => {
+        btn.classList.add('pressed');
+        setTimeout(() => btn.classList.remove('pressed'), 120);
+
+        smiley.classList.remove('pop');
+        // force reflow so the animation can replay on repeated clicks
+        void smiley.offsetWidth;
+        smiley.classList.add('pop');
+    });
+</script>
+
+</body>
+</html>
